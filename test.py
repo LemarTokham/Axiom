@@ -48,7 +48,7 @@ with open('output.json') as f:
         timestamps.append(item)
     f.close()
 
-prin
+
 
 for timestamp in timestamps:
     s = timestamp.split(",")
