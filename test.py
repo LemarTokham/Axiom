@@ -40,14 +40,21 @@ with open("output.json", "w") as outfile:
 
 
 
-timestamps = {}
+timestamps = []
 
-with open('meaningful_moments.json') as f:
+with open('output.json') as f:
     data = json.load(f)
     for item in data['meaningful_moments']:
-        timestamps[item['description']] = item['timestamp']
+        timestamps.append(item)
     f.close()
 
+prin
+
+for timestamp in timestamps:
+    s = timestamp.split(",")
+    tup = tuple(s)
+    print(tup)
+    
   
 
 
