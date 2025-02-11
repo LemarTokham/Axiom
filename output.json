@@ -1,0 +1,32 @@
+{
+    "meaningful_moments": [
+        {
+            "timestamp": "(00:00, 00:41)",
+            "description": "Introduction to backpropagation and neural networks"
+        },
+        {
+            "timestamp": "(01:46, 02:40)",
+            "description": "Visualizing the gradient descent process"
+        },
+        {
+            "timestamp": "(04:08, 05:05)",
+            "description": "Explanation of how error propagates back through the network"
+        },
+        {
+            "timestamp": "(06:50, 07:55)",
+            "description": "Analogy of backpropagation with moving bricks"
+        },
+        {
+            "timestamp": "(09:05, 10:00)",
+            "description": "Mathematical formulation of backpropagation (partial derivatives)"
+        },
+        {
+            "timestamp": "(11:54, 12:40)",
+            "description": "Detailed example calculation of backpropagation for one layer"
+        },
+        {
+            "timestamp": "(14:00, 14:44)",
+            "description": "Addressing common misconceptions and importance of learning rate"
+        }
+    ]
+}
