@@ -1,32 +1,28 @@
 {
     "meaningful_moments": [
         {
-            "timestamp": "(00:00, 00:41)",
-            "description": "Introduction to backpropagation and neural networks"
+            "timestamp": "(00:00:08, 00:00:23)",
+            "description": "Explains the core idea of backpropagation as gradient descent on a loss function."
         },
         {
-            "timestamp": "(01:46, 02:40)",
-            "description": "Visualizing the gradient descent process"
+            "timestamp": "(00:01:18, 00:01:41)",
+            "description": "Visual representation of a neural network and its layers."
         },
         {
-            "timestamp": "(04:08, 05:05)",
-            "description": "Explanation of how error propagates back through the network"
+            "timestamp": "(00:02:05, 00:02:25)",
+            "description": "Explains forward pass and calculating the loss."
         },
         {
-            "timestamp": "(06:50, 07:55)",
-            "description": "Analogy of backpropagation with moving bricks"
+            "timestamp": "(00:03:14, 00:03:41)",
+            "description": "Demonstrates calculating derivatives with chain rule for backpropagation."
         },
         {
-            "timestamp": "(09:05, 10:00)",
-            "description": "Mathematical formulation of backpropagation (partial derivatives)"
+            "timestamp": "(00:04:04, 00:04:25)",
+            "description": "Illustrates how the gradient updates the weights to reduce the loss."
         },
         {
-            "timestamp": "(11:54, 12:40)",
-            "description": "Detailed example calculation of backpropagation for one layer"
-        },
-        {
-            "timestamp": "(14:00, 14:44)",
-            "description": "Addressing common misconceptions and importance of learning rate"
+            "timestamp": "(00:05:17, 00:05:42)",
+            "description": "Discusses the implications and applications of backpropagation."
         }
     ]
 }
