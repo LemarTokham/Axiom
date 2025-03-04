@@ -11,25 +11,26 @@ from beanie import init_beanie
 
 
 class MongoDB:
-    """A MongoDB utility class for managing the database connection."""
 
-    def __init__(self):
+    def __init__(self, mongo_uri: str, database_name: str, document_models = None):
+        self.mongo_uri = mongo_uri
+        self.document_models = document_models if document_models is not None else []
+        self.database_name = database_name
         self.client: MongoClient | None = None
         self.db: AsyncIOMotorDatabase | None = None
 
 
-    async def init_db(self, mongo_uri: str, database_name) -> None:
+    async def init_db(self) -> None:
 
         try:
-
-            self.client = MongoClient(mongo_uri)
-            self.db = self.client[database_name]
+            self.client = MongoClient(self.mongo_uri)
+            self.db = self.client[self.database_name]
 
             self.ping()
 
             # ADD TO THIS LIST THE PYDANTIC DOCUMENT CLASS
-            document_models = []
-            await init_beanie(database=self.db, document_models=document_models)
+
+            await init_beanie(database=self.db, document_models=self.document_models)
             print("MongoDB connection established and Beanie initialized.")
         except Exception as e:
             print(f"Error initializing MongoDB: {e}")
@@ -44,7 +45,6 @@ class MongoDB:
     def ping(self) -> None:
 
         try:
-
             self.client.admin.command('ping')
             print("Pinged MongoDB deployment successfully.")
         except PyMongoError as e:
@@ -63,10 +63,3 @@ class MongoDB:
             raise ValueError("Client not initialized. Call init_db() first.")
         return self.client
 
-
-mongo = MongoDB()
-
-__all__ = [
-    "mongo",
-    "MongoDB",
-]
