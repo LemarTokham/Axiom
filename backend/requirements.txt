@@ -1,0 +1,3 @@
+pip install pymongo
+pip install python-dotenv
+pip install bcrypt
