@@ -236,6 +236,12 @@ class AxiomAuthManager:
             # Don't reveal if email exists for security
             return True, "If a user with this email exists, a password reset link has been sent"
         
+        # Check if account is active
+        if not user.get("is_active", True):
+            # Still don't reveal the account exists, but log this for admin
+            print(f"Password reset attempted for inactive account: {email}")
+            return True, "If a user with this email exists, a password reset link has been sent"
+        
         # Generate reset token and expiry (24 hours)
         reset_token = str(uuid.uuid4())
         expiry = datetime.now().timestamp() + 86400
@@ -258,6 +264,21 @@ class AxiomAuthManager:
             }
         except Exception as e:
             return False, f"Database error: {str(e)}"
+            
+    def refresh_password_reset(self, email: str) -> Tuple[bool, Union[str, Dict]]:
+        """
+        Generate a new password reset token, replacing any existing one.
+        
+        This is useful when a user didn't receive the original reset email
+        or when the previous token is lost.
+        
+        Args:
+            email: The user's email address
+            
+        Returns:
+            Tuple[bool, Union[str, Dict]]: (success, message or token info)
+        """
+        return self.request_password_reset(email)  # Simply reuse the existing method
     
     def reset_password(self, reset_token: str, new_password: str) -> Tuple[bool, str]:
         """Reset a user's password using a valid reset token"""
@@ -294,6 +315,49 @@ class AxiomAuthManager:
                 }
             )
             return True, "Password reset successfully"
+        except Exception as e:
+            return False, f"Database error: {str(e)}"
+            
+    def cancel_password_reset(self, user_id: str, current_password: str) -> Tuple[bool, str]:
+        """
+        Cancel an ongoing password reset process by invalidating the reset token.
+        
+        This is useful when a user suspects their reset token might be compromised
+        or when they want to start a fresh password reset process.
+        
+        Args:
+            user_id: The ID of the user
+            current_password: The current password for verification
+            
+        Returns:
+            Tuple[bool, str]: (success, message)
+        """
+        # Find the user
+        try:
+            user = self.users.find_one({"_id": ObjectId(user_id)})
+            if not user:
+                return False, "User not found"
+            
+            # Verify current password
+            if not bcrypt.checkpw(current_password.encode('utf-8'), user["password_hash"]):
+                return False, "Current password is incorrect"
+            
+            # Check if there's an active reset token
+            if not user.get("security", {}).get("password_reset_token"):
+                return False, "No active password reset to cancel"
+            
+            # Invalidate the reset token
+            self.users.update_one(
+                {"_id": ObjectId(user_id)},
+                {
+                    "$set": {
+                        "security.password_reset_token": None,
+                        "security.password_reset_expiry": None
+                    }
+                }
+            )
+            
+            return True, "Password reset process canceled successfully"
         except Exception as e:
             return False, f"Database error: {str(e)}"
     
@@ -346,3 +410,142 @@ class AxiomAuthManager:
             return None
         except Exception:
             return None
+    
+    def delete_user_account(self, user_id: str, password: str = None) -> Tuple[bool, str]:
+        """
+        Permanently delete a user account and all associated data from the database.
+        
+        This function performs a complete deletion, removing:
+        1. All flashcard decks, quizzes, and video chapters created by the user
+        2. All modules created by the user
+        3. All courses created by the user
+        4. The user's profile and all personal information
+        
+        Args:
+            user_id: The ID of the user to delete
+            password: Optional password for verification. If None, skips password verification
+                     (should only be None for admin actions)
+        
+        Returns:
+            Tuple[bool, str]: (success, message)
+        """
+        # Find the user
+        try:
+            user = self.users.find_one({"_id": ObjectId(user_id)})
+            if not user:
+                return False, "User not found"
+            
+            # Verify password if provided
+            if password is not None:
+                if not bcrypt.checkpw(password.encode('utf-8'), user["password_hash"]):
+                    return False, "Invalid password"
+            
+            # Track deletion metrics for reporting
+            deletion_counts = {
+                "flashcard_decks": 0,
+                "quizzes": 0,
+                "video_chapters": 0,
+                "modules": 0,
+                "courses": 0
+            }
+            
+            # Get all courses created by the user
+            courses = list(self.db['courses'].find({"user_id": ObjectId(user_id)}))
+            
+            # For each course, delete all modules and their content
+            for course in courses:
+                # Get modules for this course
+                modules = list(self.db['modules'].find({"course_id": course["_id"]}))
+                
+                # For each module, delete all content
+                for module in modules:
+                    # Delete flashcards, quizzes, video chapters
+                    result = self.db['flashcard_decks'].delete_many({"module_id": module["_id"]})
+                    deletion_counts["flashcard_decks"] += result.deleted_count
+                    
+                    result = self.db['quizzes'].delete_many({"module_id": module["_id"]})
+                    deletion_counts["quizzes"] += result.deleted_count
+                    
+                    result = self.db['video_chapters'].delete_many({"module_id": module["_id"]})
+                    deletion_counts["video_chapters"] += result.deleted_count
+                
+                # Delete all modules in this course
+                result = self.db['modules'].delete_many({"course_id": course["_id"]})
+                deletion_counts["modules"] += result.deleted_count
+            
+            # Delete all courses
+            result = self.db['courses'].delete_many({"user_id": ObjectId(user_id)})
+            deletion_counts["courses"] += result.deleted_count
+            
+            # Finally, delete the user
+            self.users.delete_one({"_id": ObjectId(user_id)})
+            
+            # Prepare detailed report
+            report = (
+                f"Account deleted successfully. Removed: "
+                f"{deletion_counts['courses']} courses, "
+                f"{deletion_counts['modules']} modules, "
+                f"{deletion_counts['flashcard_decks']} flashcard decks, "
+                f"{deletion_counts['quizzes']} quizzes, "
+                f"{deletion_counts['video_chapters']} video chapters."
+            )
+            
+            return True, report
+        
+        except Exception as e:
+            return False, f"Error deleting account: {str(e)}"
+
+    def admin_delete_user(self, admin_user_id: str, target_user_id: str) -> Tuple[bool, str]:
+        """
+        Administrator function to delete a user account.
+        
+        Args:
+            admin_user_id: The ID of the admin user performing the deletion
+            target_user_id: The ID of the user to delete
+        
+        Returns:
+            Tuple[bool, str]: (success, message)
+        """
+        # Verify admin status
+        admin = self.users.find_one({"_id": ObjectId(admin_user_id)})
+        if not admin:
+            return False, "Admin user not found"
+        
+        if not admin.get("is_admin", False):
+            return False, "Permission denied: Admin privileges required"
+        
+        # Call the main delete function without password verification
+        return self.delete_user_account(target_user_id, password=None)
+
+    def deactivate_user_account(self, user_id: str, password: str) -> Tuple[bool, str]:
+        """
+        Soft-delete a user account by deactivating it.
+        The data remains in the database but the user cannot log in.
+        
+        Args:
+            user_id: The ID of the user to deactivate
+            password: The password for verification
+        
+        Returns:
+            Tuple[bool, str]: (success, message)
+        """
+        # Find the user
+        try:
+            user = self.users.find_one({"_id": ObjectId(user_id)})
+            if not user:
+                return False, "User not found"
+            
+            # Verify password
+            if not bcrypt.checkpw(password.encode('utf-8'), user["password_hash"]):
+                return False, "Invalid password"
+            
+            # Deactivate the account
+            self.users.update_one(
+                {"_id": ObjectId(user_id)},
+                {"$set": {"is_active": False, "deactivated_at": datetime.now()}}
+            )
+            
+            return True, "Account deactivated successfully. You can contact support to reactivate it."
+        
+        except Exception as e:
+            return False, f"Error deactivating account: {str(e)}"
