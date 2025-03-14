@@ -35,7 +35,6 @@ apiClient.interceptors.request.use((config) => {
 });
 
 
-// DEALS WITH ERRORS
 apiClient.interceptors.response.use(
     (response) => response,
     (error) => {

@@ -28,8 +28,6 @@ class MongoDB:
 
             self.ping()
 
-            # ADD TO THIS LIST THE PYDANTIC DOCUMENT CLASS
-
             await init_beanie(database=self.db, document_models=self.document_models)
             print("MongoDB connection established and Beanie initialized.")
         except Exception as e:

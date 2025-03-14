@@ -6,3 +6,7 @@ from backend.mongo_client import MongoDB
 @lru_cache
 def get_mongo():
     pass
+
+@lru_cache
+def get_logger():
+    pass

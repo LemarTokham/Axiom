@@ -10,7 +10,7 @@ class UserBase(BaseModel):
     email: EmailStr
     password_hash: str
     is_admin: bool
-    flashcards_decks: list[PyObjectId]
+    course: list[PyObjectId]
 
 
 class UserCreate(UserBase):
@@ -23,10 +23,13 @@ class UserUpdate(UserBase):
 
 
 class User(UserBase, DocumentId):
-    class Config:
-        populate_by_name = True
-        arbitrary_types_allowed = True
+
+    model_config = {
+        "populate_by_name": True,
+        "arbitrary_types_allowed": True
+    }
 
 
 class UserDocument(User, Document):
-    pass
+    class Settings:
+        name = "users"
