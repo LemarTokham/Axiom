@@ -12,7 +12,7 @@ def create_app(test_config=None):
         # a default secret that should be overridden by instance config
         SECRET_KEY="dev",
         # store the database in the instance folder
-        MONGODB_URL = "mongodb+srv://ethansinclair527:ethansinclair527@cluster0.5imi7.mongodb.net/",
+        MONGODB_URL = "",
         MONGODB_DATABASE = "axiom_db"
     )
 
