@@ -134,6 +134,46 @@ class AxiomProfileManager:
             print(f"Error fetching study stats: {str(e)}")
             return None
     
+    
+    
+    def update_study_statistics(self, user_id, study_time, flashcards_reviewed, quizzes_completed):
+        """
+        Update comprehensive study statistics for a user
+        
+        Args:
+            user_id (str): The user ID
+            study_time (int): Time spent studying in minutes
+            flashcards_reviewed (int): Number of flashcards reviewed
+            quizzes_completed (int): Number of quizzes completed
+            
+        Returns:
+            Tuple[bool, str]: Success status and message
+        """
+        try:
+            # Update all stats in one operation
+            updates = {
+                "study_stats.total_study_time": study_time,
+                "study_stats.flashcards_reviewed": flashcards_reviewed,
+                "study_stats.quizzes_completed": quizzes_completed,
+                "study_stats.last_activity": datetime.now()
+            }
+            
+            # Update the user document
+            result = self.users.update_one(
+                {"_id": ObjectId(user_id)},
+                {"$inc": updates}
+            )
+            
+            if result.matched_count == 0:
+                return False, "User not found"
+                
+            return True, "Study statistics updated successfully"
+        except Exception as e:
+            return False, f"Database error: {str(e)}"
+    
+    
+    
+    
     def update_study_stats(self, user_id: str, stats_update: Dict) -> Tuple[bool, str]:
         """Update a user's study statistics"""
         allowed_fields = [

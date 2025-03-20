@@ -1,7 +1,7 @@
 """
-Axiom Learning Platform - Command Line Interface
+Axiom Learning Platform - Command Line Interface with AI Features
 This script provides a terminal-based interface to interact with the Axiom system.
-Users can register, login, manage their profile, create courses, and more.
+Users can register, login, manage profiles, create courses, and generate AI content.
 
 To run this CLI:
     python axiom_cli.py
@@ -216,14 +216,13 @@ class AxiomCLI:
             "View profile",
             "Update profile",
             "Manage courses",
-            "Manage notes",  # New option
             "Study statistics",
             "Account settings"
         ]
         
         # Add admin panel option for admin users
         if is_admin:
-            options.insert(4, "Admin Panel")
+            options.insert(3, "Admin Panel")
         
         options.append("Logout")
         
@@ -248,14 +247,286 @@ class AxiomCLI:
                 if is_admin:
                     self.admin_panel()
                 else:
-                    self.manage_notes()  # New function call
+                    self.view_study_statistics()
             elif (is_admin and choice == 5) or (not is_admin and choice == 4):
-                self.view_study_statistics()
-            elif (is_admin and choice == 6) or (not is_admin and choice == 5):
                 self.account_settings()
-            elif (is_admin and choice == 7) or (not is_admin and choice == 6) or choice == 0:
+            elif (is_admin and choice == 6) or (not is_admin and choice == 5) or choice == 0:
                 self.logout()
                 break
+    
+    def generate_ai_content_menu(self):
+        """Menu for AI content generation"""
+        options = [
+            "Generate flashcards from notes",
+            "Generate quiz from notes",
+            "Generate video chapter suggestions from notes",
+            "Back to user menu"
+        ]
+        
+        while True:
+            self.print_header("GENERATE AI CONTENT")
+            self.print_menu(options)
+            
+            choice = self.get_menu_choice(options)
+            
+            if choice == 1:
+                self.generate_ai_flashcards()
+            elif choice == 2:
+                self.generate_ai_quiz()
+            elif choice == 3:
+                self.generate_ai_video_chapters()
+            elif choice == 4 or choice == 0:
+                break
+    
+    def generate_ai_flashcards(self):
+        """Generate AI flashcards from notes"""
+        # First select a note
+        if not self.select_note_for_generation("GENERATE AI FLASHCARDS"):
+            return
+            
+        # Then select a module
+        if not self.select_module_for_generation("GENERATE AI FLASHCARDS"):
+            return
+            
+        # Generate flashcards
+        self.print_header(f"GENERATING FLASHCARDS: {self.current_note['title']}")
+        print(f"Generating flashcards for module: {self.current_module['title']}")
+        print("This may take a moment...")
+        
+        success, result = self.content_manager.generate_flashcards_from_notes(
+            note_id=self.current_note['_id'],
+            user_id=self.current_user['id'],
+            module_id=self.current_module['_id']
+        )
+        
+        if success:
+            print(f"\n✅ Flashcard deck created successfully with {result['card_count']} cards.")
+            print(f"Title: {result['title']}")
+            print(f"Added to module: {self.current_module['title']}")
+        else:
+            print(f"\n❌ Flashcard generation failed: {result}")
+        
+        self.wait_for_enter()
+        
+        # Reset selected items
+        self.current_note = None
+        self.current_module = None
+    
+    def generate_ai_quiz(self):
+        """Generate AI quiz from notes"""
+        # First select a note
+        if not self.select_note_for_generation("GENERATE AI QUIZ"):
+            return
+            
+        # Then select a module
+        if not self.select_module_for_generation("GENERATE AI QUIZ"):
+            return
+            
+        # Generate quiz
+        self.print_header(f"GENERATING QUIZ: {self.current_note['title']}")
+        print(f"Generating quiz for module: {self.current_module['title']}")
+        print("This may take a moment...")
+        
+        success, result = self.content_manager.generate_quiz_from_notes(
+            note_id=self.current_note['_id'],
+            user_id=self.current_user['id'],
+            module_id=self.current_module['_id']
+        )
+        
+        if success:
+            print(f"\n✅ Quiz created successfully with {result['question_count']} questions.")
+            print(f"Title: {result['title']}")
+            print(f"Added to module: {self.current_module['title']}")
+        else:
+            print(f"\n❌ Quiz generation failed: {result}")
+        
+        self.wait_for_enter()
+        
+        # Reset selected items
+        self.current_note = None
+        self.current_module = None
+    
+    def generate_ai_video_chapters(self):
+        """Generate AI video chapter suggestions from notes"""
+        # First select a note
+        if not self.select_note_for_generation("GENERATE VIDEO CHAPTER SUGGESTIONS"):
+            return
+            
+        # Then select a module
+        if not self.select_module_for_generation("GENERATE VIDEO CHAPTER SUGGESTIONS"):
+            return
+            
+        # Generate video chapter suggestions
+        self.print_header(f"GENERATING VIDEO CHAPTERS: {self.current_note['title']}")
+        print(f"Generating video chapter suggestions for module: {self.current_module['title']}")
+        print("This may take a moment...")
+        
+        success, result = self.content_manager.suggest_video_chapters_from_notes(
+            note_id=self.current_note['_id'],
+            user_id=self.current_user['id'],
+            module_id=self.current_module['_id']
+        )
+        
+        if success:
+            print(f"\n✅ Video chapter suggestions generated successfully.")
+            print("\nSuggested chapters:")
+            for i, chapter in enumerate(result['chapters'], 1):
+                print(f"{i}. {chapter['title']}")
+                print(f"   Description: {chapter['description']}")
+                print()
+                
+            # Option to create video chapters
+            create_chapters = input("\nWould you like to create these video chapters? (y/n): ").lower() == 'y'
+            if create_chapters:
+                self.create_video_chapters_from_suggestions(result['chapters'])
+        else:
+            print(f"\n❌ Video chapter suggestion generation failed: {result}")
+        
+        self.wait_for_enter()
+        
+        # Reset selected items
+        self.current_note = None
+        self.current_module = None
+    
+    def create_video_chapters_from_suggestions(self, chapters):
+        """Create video chapters from AI suggestions"""
+        self.print_header("CREATE VIDEO CHAPTERS")
+        
+        video_url = input("Enter a YouTube video URL for these chapters: ")
+        if not video_url:
+            print("❌ Video URL is required.")
+            return
+        
+        for chapter in chapters:
+            print(f"\nCreating chapter: {chapter['title']}")
+            
+            try:
+                start_time = int(input("Start time (seconds): "))
+                end_time = int(input("End time (seconds): "))
+                
+                if start_time < 0 or end_time <= start_time:
+                    print("❌ Invalid timestamps. End time must be greater than start time.")
+                    continue
+            except ValueError:
+                print("❌ Timestamps must be valid numbers.")
+                continue
+            
+            success, result = self.content_manager.create_video_chapter(
+                module_id=self.current_module['_id'],
+                user_id=self.current_user['id'],
+                title=chapter['title'],
+                video_url=video_url,
+                start_time=start_time,
+                end_time=end_time,
+                transcript=chapter['description']
+            )
+            
+            if success:
+                print(f"✅ Video chapter created successfully: {chapter['title']}")
+            else:
+                print(f"❌ Video chapter creation failed: {result}")
+    
+    def select_note_for_generation(self, title):
+        """Select a note for AI content generation"""
+        self.print_header(title)
+        
+        notes = self.content_manager.get_user_notes(self.current_user['id'])
+        
+        if not notes:
+            print("You don't have any notes yet. Please upload notes first.")
+            self.wait_for_enter()
+            return False
+        
+        print("Select a note to generate content from:")
+        for i, note in enumerate(notes, 1):
+            print(f"{i}. {note['title']} - {note['topic']}")
+        
+        try:
+            choice = int(input("\nEnter note number (0 to go back): "))
+            if choice == 0:
+                return False
+            
+            if 1 <= choice <= len(notes):
+                self.current_note = notes[choice - 1]
+                return True
+            else:
+                print("❌ Invalid note number.")
+                self.wait_for_enter()
+                return False
+        except ValueError:
+            print("❌ Please enter a valid number.")
+            self.wait_for_enter()
+            return False
+    
+    def select_module_for_generation(self, title):
+        """Select a module for AI content generation"""
+        self.print_header(title)
+        
+        # First select a course if none is selected
+        if not self.current_course:
+            courses = self.course_manager.get_user_courses(self.current_user['id'])
+            
+            if not courses:
+                print("You don't have any courses yet. Please create a course first.")
+                self.wait_for_enter()
+                return False
+            
+            print("Select a course:")
+            for i, course in enumerate(courses, 1):
+                print(f"{i}. {course['title']}")
+            
+            try:
+                choice = int(input("\nEnter course number (0 to go back): "))
+                if choice == 0:
+                    return False
+                
+                if 1 <= choice <= len(courses):
+                    self.current_course = courses[choice - 1]
+                else:
+                    print("❌ Invalid course number.")
+                    self.wait_for_enter()
+                    return False
+            except ValueError:
+                print("❌ Please enter a valid number.")
+                self.wait_for_enter()
+                return False
+        
+        # Now select a module
+        modules = self.course_manager.get_course_modules(self.current_course['_id'])
+        
+        if not modules:
+            print(f"Course '{self.current_course['title']}' has no modules. Please create a module first.")
+            self.wait_for_enter()
+            # Reset current course
+            self.current_course = None
+            return False
+        
+        print(f"\nSelect a module from course '{self.current_course['title']}':")
+        for i, module in enumerate(modules, 1):
+            print(f"{i}. {module['title']}")
+        
+        try:
+            choice = int(input("\nEnter module number (0 to go back): "))
+            if choice == 0:
+                # Reset current course
+                self.current_course = None
+                return False
+            
+            if 1 <= choice <= len(modules):
+                self.current_module = modules[choice - 1]
+                return True
+            else:
+                print("❌ Invalid module number.")
+                self.wait_for_enter()
+                # Reset current course
+                self.current_course = None
+                return False
+        except ValueError:
+            print("❌ Please enter a valid number.")
+            self.wait_for_enter()
+            # Reset current course
+            self.current_course = None
+            return False
     
     def view_profile(self):
         """View user profile information"""
@@ -705,6 +976,8 @@ class AxiomCLI:
             "View module details",
             "Edit module",
             "Manage content",
+            "Study content",  # New option for studying
+            "Generate AI content for this module",
             "Delete module",
             "Back to modules"
         ]
@@ -722,11 +995,411 @@ class AxiomCLI:
             elif choice == 3:
                 self.manage_content()
             elif choice == 4:
+                self.study_module_content()  # New function for studying
+            elif choice == 5:
+                self.generate_ai_content_for_module()
+            elif choice == 6:
                 if self.delete_module():
                     break
-            elif choice == 5 or choice == 0:
+            elif choice == 7 or choice == 0:
                 self.current_module = None
                 break
+    
+    def study_module_content(self):
+        """Interface for studying module content (flashcards and quizzes)"""
+        # Get module content
+        content = self.content_manager.get_module_content(self.current_module['_id'])
+        
+        # Create options based on available content
+        options = []
+        
+        # Add flashcard deck options
+        for i, deck in enumerate(content.get('flashcard_decks', []), 1):
+            options.append(f"Study Flashcards: {deck['title']} ({len(deck['cards'])} cards)")
+        
+        # Add quiz options
+        for i, quiz in enumerate(content.get('quizzes', []), 1):
+            options.append(f"Take Quiz: {quiz['title']} ({len(quiz['questions'])} questions)")
+        
+        # Add back option
+        options.append("Back to module menu")
+        
+        # If no content is available
+        if len(options) == 1:  # Only the "Back" option
+            self.print_header(f"STUDY CONTENT: {self.current_module['title']}")
+            print("This module has no flashcards or quizzes available for study.")
+            print("Please add content to this module first.")
+            self.wait_for_enter()
+            return
+        
+        while True:
+            self.print_header(f"STUDY CONTENT: {self.current_module['title']}")
+            self.print_menu(options)
+            
+            choice = self.get_menu_choice(options)
+            
+            if choice == 0 or choice == len(options):
+                break
+            
+            # Determine if flashcard or quiz was selected
+            flashcard_count = len(content.get('flashcard_decks', []))
+            
+            if choice <= flashcard_count:
+                # Study the selected flashcard deck
+                self.study_flashcard_deck(content['flashcard_decks'][choice - 1])
+            else:
+                # Take the selected quiz
+                self.take_quiz(content['quizzes'][choice - flashcard_count - 1])
+    
+    def study_flashcard_deck(self, deck):
+        """Interface for studying a flashcard deck"""
+        cards = deck['cards']
+        current_card_index = 0
+        show_front = True
+        
+        if not cards:
+            self.print_header(f"STUDY FLASHCARDS: {deck['title']}")
+            print("This flashcard deck has no cards.")
+            self.wait_for_enter()
+            return
+        
+        # Track study session statistics
+        start_time = time.time()
+        cards_reviewed = 0
+        
+        while True:
+            self.print_header(f"STUDY FLASHCARDS: {deck['title']}")
+            
+            # Display card count and progress
+            print(f"Card {current_card_index + 1} of {len(cards)}")
+            print(f"Reviewed: {cards_reviewed}")
+            print()
+            
+            # Display the current card
+            card = cards[current_card_index]
+            
+            print("-" * 50)
+            if show_front:
+                print("FRONT:")
+                print(card['front'])
+            else:
+                print("FRONT:")
+                print(card['front'])
+                print()
+                print("BACK:")
+                print(card['back'])
+            print("-" * 50)
+            
+            print("\nOptions:")
+            if show_front:
+                print("  F = Flip card")
+                print("  N = Next card (mark as not reviewed)")
+            else:
+                print("  F = Flip card")
+                print("  N = Next card (mark as reviewed)")
+            print("  P = Previous card")
+            print("  R = Restart deck")
+            print("  S = Shuffle cards")
+            print("  Q = Quit studying")
+            
+            action = input("\nEnter option: ").lower()
+            
+            if action == 'f':
+                # Flip the card
+                show_front = not show_front
+            elif action == 'n':
+                # Go to next card
+                if not show_front:
+                    cards_reviewed += 1
+                    
+                # Update show_front for next card
+                show_front = True
+                
+                # Move to next card or wrap around
+                current_card_index = (current_card_index + 1) % len(cards)
+            elif action == 'p':
+                # Go to previous card
+                show_front = True
+                current_card_index = (current_card_index - 1) % len(cards)
+            elif action == 'r':
+                # Restart the deck
+                current_card_index = 0
+                show_front = True
+                cards_reviewed = 0
+            elif action == 's':
+                # Shuffle the cards
+                import random
+                random.shuffle(cards)
+                current_card_index = 0
+                show_front = True
+                cards_reviewed = 0
+                print("\nCards shuffled!")
+                time.sleep(1)
+            elif action == 'q':
+                # End the session and update stats
+                try:
+                    study_time = round((time.time() - start_time) / 60)  # In minutes
+                    
+                    # Update user study statistics
+                    success, message = self.profile_manager.update_study_statistics(
+                        user_id=self.current_user['id'],
+                        study_time=study_time,
+                        flashcards_reviewed=cards_reviewed,
+                        quizzes_completed=0
+                    )
+                    
+                    if not success:
+                        print(f"\n⚠️ {message}")
+                except Exception as e:
+                    print(f"\n⚠️ Error updating study statistics: {str(e)}")
+                
+                # Show session summary
+                self.print_header(f"STUDY SESSION SUMMARY: {deck['title']}")
+                print(f"Session duration: {study_time} minutes")
+                print(f"Cards reviewed: {cards_reviewed}")
+                print(f"Cards in deck: {len(cards)}")
+                if len(cards) > 0:
+                    print(f"Completion rate: {round(cards_reviewed / len(cards) * 100)}%")
+                
+                self.wait_for_enter()
+                break
+                # End the session and update stats
+                study_time = round((time.time() - start_time) / 60)  # In minutes
+                
+                # Update user study statistics
+                self.profile_manager.update_study_statistics(
+                    user_id=self.current_user['id'],
+                    study_time=study_time,
+                    flashcards_reviewed=cards_reviewed,
+                    quizzes_completed=0
+                )
+                
+                # Show session summary
+                self.print_header(f"STUDY SESSION SUMMARY: {deck['title']}")
+                print(f"Session duration: {study_time} minutes")
+                print(f"Cards reviewed: {cards_reviewed}")
+                print(f"Cards in deck: {len(cards)}")
+                if len(cards) > 0:
+                    print(f"Completion rate: {round(cards_reviewed / len(cards) * 100)}%")
+                
+                self.wait_for_enter()
+                break
+    
+    def take_quiz(self, quiz):
+        """Interface for taking a quiz"""
+        questions = quiz['questions']
+        
+        if not questions:
+            self.print_header(f"TAKE QUIZ: {quiz['title']}")
+            print("This quiz has no questions.")
+            self.wait_for_enter()
+            return
+        
+        # Track study session statistics
+        start_time = time.time()
+        correct_answers = 0
+        
+        # Make a copy of questions to potentially shuffle
+        quiz_questions = questions.copy()
+        
+        # Ask user if they want to shuffle questions
+        self.print_header(f"TAKE QUIZ: {quiz['title']}")
+        print(f"This quiz has {len(quiz_questions)} questions.")
+        shuffle = input("Would you like to shuffle the questions? (y/n): ").lower() == 'y'
+        
+        if shuffle:
+            import random
+            random.shuffle(quiz_questions)
+        
+        # Take the quiz
+        answers = []
+        for i, question in enumerate(quiz_questions, 1):
+            self.print_header(f"QUIZ: {quiz['title']} - Question {i}/{len(quiz_questions)}")
+            
+            print(question['question'])
+            print()
+            
+            # Display options
+            for j, option in enumerate(question['options'], 1):
+                print(f"{j}. {option}")
+            
+            # Get user's answer
+            while True:
+                try:
+                    answer_index = int(input("\nEnter your answer (number): ")) - 1
+                    if 0 <= answer_index < len(question['options']):
+                        user_answer = question['options'][answer_index]
+                        break
+                    print(f"Please enter a number between 1 and {len(question['options'])}.")
+                except ValueError:
+                    print("Please enter a valid number.")
+            
+            # Record answer
+            is_correct = user_answer == question['correct_answer']
+            if is_correct:
+                correct_answers += 1
+            
+            answers.append({
+                'question': question['question'],
+                'user_answer': user_answer,
+                'correct_answer': question['correct_answer'],
+                'is_correct': is_correct
+            })
+        
+        # Calculate results
+        score = round(correct_answers / len(quiz_questions) * 100)
+        study_time = round((time.time() - start_time) / 60)  # In minutes
+        
+        # Update user study statistics
+        self.profile_manager.update_study_statistics(
+            user_id=self.current_user['id'],
+            study_time=study_time,
+            flashcards_reviewed=0,
+            quizzes_completed=1
+        )
+        
+        # Show results
+        self.print_header(f"QUIZ RESULTS: {quiz['title']}")
+        print(f"Score: {score}% ({correct_answers} of {len(quiz_questions)} correct)")
+        print(f"Time taken: {study_time} minutes")
+        print()
+        
+        # Ask if user wants to review answers
+        review = input("Would you like to review your answers? (y/n): ").lower() == 'y'
+        
+        if review:
+            for i, answer in enumerate(answers, 1):
+                self.print_header(f"REVIEW: {quiz['title']} - Question {i}/{len(answers)}")
+                
+                print(answer['question'])
+                print()
+                print(f"Your answer: {answer['user_answer']}")
+                print(f"Correct answer: {answer['correct_answer']}")
+                print()
+                print(f"{'✓ Correct' if answer['is_correct'] else '✗ Incorrect'}")
+                
+                if i < len(answers):
+                    input("\nPress Enter for next question...")
+        
+        self.wait_for_enter()
+    
+    def generate_ai_content_for_module(self):
+        """Generate AI content specifically for the current module"""
+        options = [
+            "Generate flashcards from notes",
+            "Generate quiz from notes",
+            "Generate video chapter suggestions from notes",
+            "Back to module menu"
+        ]
+        
+        while True:
+            self.print_header(f"GENERATE AI CONTENT: {self.current_module['title']}")
+            print(f"Course: {self.current_course['title']}")
+            self.print_menu(options)
+            
+            choice = self.get_menu_choice(options)
+            
+            if choice == 1:
+                self.generate_module_flashcards()
+            elif choice == 2:
+                self.generate_module_quiz()
+            elif choice == 3:
+                self.generate_module_video_chapters()
+            elif choice == 4 or choice == 0:
+                break
+    
+    def generate_module_flashcards(self):
+        """Generate AI flashcards for current module from notes"""
+        # Select a note (the module is already selected)
+        if not self.select_note_for_generation(f"GENERATE FLASHCARDS FOR: {self.current_module['title']}"):
+            return
+            
+        # Generate flashcards
+        self.print_header(f"GENERATING FLASHCARDS: {self.current_note['title']}")
+        print(f"For module: {self.current_module['title']}")
+        print("This may take a moment...")
+        
+        success, result = self.content_manager.generate_flashcards_from_notes(
+            note_id=self.current_note['_id'],
+            user_id=self.current_user['id'],
+            module_id=self.current_module['_id']
+        )
+        
+        if success:
+            print(f"\n✅ Flashcard deck created successfully with {result['card_count']} cards.")
+            print(f"Title: {result['title']}")
+        else:
+            print(f"\n❌ Flashcard generation failed: {result}")
+        
+        self.wait_for_enter()
+        
+        # Reset selected note
+        self.current_note = None
+    
+    def generate_module_quiz(self):
+        """Generate AI quiz for current module from notes"""
+        # Select a note (the module is already selected)
+        if not self.select_note_for_generation(f"GENERATE QUIZ FOR: {self.current_module['title']}"):
+            return
+            
+        # Generate quiz
+        self.print_header(f"GENERATING QUIZ: {self.current_note['title']}")
+        print(f"For module: {self.current_module['title']}")
+        print("This may take a moment...")
+        
+        success, result = self.content_manager.generate_quiz_from_notes(
+            note_id=self.current_note['_id'],
+            user_id=self.current_user['id'],
+            module_id=self.current_module['_id']
+        )
+        
+        if success:
+            print(f"\n✅ Quiz created successfully with {result['question_count']} questions.")
+            print(f"Title: {result['title']}")
+        else:
+            print(f"\n❌ Quiz generation failed: {result}")
+        
+        self.wait_for_enter()
+        
+        # Reset selected note
+        self.current_note = None
+    
+    def generate_module_video_chapters(self):
+        """Generate AI video chapter suggestions for current module from notes"""
+        # Select a note (the module is already selected)
+        if not self.select_note_for_generation(f"GENERATE VIDEO CHAPTERS FOR: {self.current_module['title']}"):
+            return
+            
+        # Generate video chapter suggestions
+        self.print_header(f"GENERATING VIDEO CHAPTERS: {self.current_note['title']}")
+        print(f"For module: {self.current_module['title']}")
+        print("This may take a moment...")
+        
+        success, result = self.content_manager.suggest_video_chapters_from_notes(
+            note_id=self.current_note['_id'],
+            user_id=self.current_user['id'],
+            module_id=self.current_module['_id']
+        )
+        
+        if success:
+            print(f"\n✅ Video chapter suggestions generated successfully.")
+            print("\nSuggested chapters:")
+            for i, chapter in enumerate(result['chapters'], 1):
+                print(f"{i}. {chapter['title']}")
+                print(f"   Description: {chapter['description']}")
+                print()
+                
+            # Option to create video chapters
+            create_chapters = input("\nWould you like to create these video chapters? (y/n): ").lower() == 'y'
+            if create_chapters:
+                self.create_video_chapters_from_suggestions(result['chapters'])
+        else:
+            print(f"\n❌ Video chapter suggestion generation failed: {result}")
+        
+        self.wait_for_enter()
+        
+        # Reset selected note
+        self.current_note = None
     
     def view_module_details(self):
         """View details of the current module"""
@@ -852,7 +1525,7 @@ class AxiomCLI:
             elif choice == 3:
                 self.create_video_chapter()
             elif choice == 4:
-                self.select_note_for_ai_content()  # New function
+                self.generate_ai_content_for_module()  # Reuse the AI content generation function
             elif choice == 5 or choice == 0:
                 break
     
@@ -978,7 +1651,7 @@ class AxiomCLI:
             print(f"\n❌ Quiz creation failed: {result}")
         
         self.wait_for_enter()
-    
+
     def create_video_chapter(self):
         """Create a new video chapter for the current module"""
         self.print_header(f"CREATE VIDEO CHAPTER: {self.current_module['title']}")
@@ -1046,7 +1719,7 @@ class AxiomCLI:
                 self.upload_notes()
             elif choice == 3 or choice == 0:
                 break
-
+    
     def view_notes(self):
         """View user's notes"""
         self.print_header("MY NOTES")
@@ -1077,7 +1750,7 @@ class AxiomCLI:
             pass
             
         self.current_note = None
-
+    
     def upload_notes(self):
         """Upload new notes"""
         self.print_header("UPLOAD NEW NOTES")
@@ -1107,6 +1780,16 @@ class AxiomCLI:
         
         if success:
             print(f"\n✅ Notes uploaded successfully with ID: {result['id']}")
+            
+            # Offer to generate AI content right away
+            generate_content = input("\nWould you like to generate AI content from these notes now? (y/n): ").lower() == 'y'
+            if generate_content:
+                # Get the full note object
+                note = self.content_manager.get_note(result['id'], self.current_user['id'])
+                if note:
+                    self.current_note = note
+                    self.select_module_for_ai_content()
+            
             self.wait_for_enter()
         else:
             print(f"\n❌ Notes upload failed: {result}")
@@ -1161,7 +1844,7 @@ class AxiomCLI:
         print("-" * 50)
         
         self.wait_for_enter()
-
+    
     def delete_note(self):
         """Delete the current note"""
         self.print_header(f"DELETE NOTE: {self.current_note['title']}")
@@ -1175,7 +1858,7 @@ class AxiomCLI:
             print("\n❌ Deletion canceled. Title does not match.")
             self.wait_for_enter()
             return False
-        
+            
         # Delete the note from the database
         try:
             self.db['notes'].delete_one({"_id": ObjectId(self.current_note['_id'])})
@@ -1186,208 +1869,7 @@ class AxiomCLI:
             print(f"\n❌ Error deleting note: {str(e)}")
             self.wait_for_enter()
             return False
-
-    def select_module_for_ai_content(self):
-        """Select a module for adding AI-generated content from the current note"""
-        self.print_header(f"SELECT MODULE: {self.current_note['title']}")
-        
-        if not self.current_course:
-            # First select a course
-            courses = self.course_manager.get_user_courses(self.current_user['id'])
             
-            if not courses:
-                print("You don't have any courses yet. Please create a course first.")
-                self.wait_for_enter()
-                return
-            
-            print("Select a course:")
-            for i, course in enumerate(courses, 1):
-                print(f"{i}. {course['title']}")
-            
-            try:
-                choice = int(input("\nEnter course number (0 to go back): "))
-                if choice == 0:
-                    return
-                
-                if 1 <= choice <= len(courses):
-                    self.current_course = courses[choice - 1]
-                else:
-                    print("❌ Invalid course number.")
-                    self.wait_for_enter()
-                    return
-            except ValueError:
-                print("❌ Please enter a valid number.")
-                self.wait_for_enter()
-                return
-        
-        # Now select a module
-        modules = self.course_manager.get_course_modules(self.current_course['_id'])
-        
-        if not modules:
-            print(f"Course '{self.current_course['title']}' has no modules. Please create a module first.")
-            self.wait_for_enter()
-            # Reset current course
-            self.current_course = None
-            return
-        
-        print(f"\nSelect a module from course '{self.current_course['title']}':")
-        for i, module in enumerate(modules, 1):
-            print(f"{i}. {module['title']}")
-        
-        try:
-            choice = int(input("\nEnter module number (0 to go back): "))
-            if choice == 0:
-                # Reset current course
-                self.current_course = None
-                return
-            
-            if 1 <= choice <= len(modules):
-                self.current_module = modules[choice - 1]
-                self.generate_ai_content()
-            else:
-                print("❌ Invalid module number.")
-                self.wait_for_enter()
-                # Reset current course
-                self.current_course = None
-                return
-        except ValueError:
-            print("❌ Please enter a valid number.")
-            self.wait_for_enter()
-            # Reset current course
-            self.current_course = None
-            return
-
-    def select_note_for_ai_content(self):
-        """Select a note for generating AI content for the current module"""
-        self.print_header(f"SELECT NOTE FOR AI CONTENT")
-        
-        notes = self.content_manager.get_user_notes(self.current_user['id'])
-        
-        if not notes:
-            print("You don't have any notes yet. Please upload notes first.")
-            self.wait_for_enter()
-            return
-        
-        print("Select a note to generate content from:")
-        for i, note in enumerate(notes, 1):
-            print(f"{i}. {note['title']} - {note['topic']}")
-        
-        try:
-            choice = int(input("\nEnter note number (0 to go back): "))
-            if choice == 0:
-                return
-            
-            if 1 <= choice <= len(notes):
-                self.current_note = notes[choice - 1]
-                self.generate_ai_content()
-            else:
-                print("❌ Invalid note number.")
-                self.wait_for_enter()
-        except ValueError:
-            print("❌ Please enter a valid number.")
-            self.wait_for_enter()
-
-    def generate_ai_content(self):
-        """Generate AI content from the current note"""
-        if not self.current_module:
-            print("❌ You need to select a module first to add content.")
-            self.wait_for_enter()
-            return
-        
-        if not self.current_note:
-            print("❌ You need to select a note first to generate content.")
-            self.wait_for_enter()
-            return
-        
-        options = [
-            "Generate flashcard deck",
-            "Generate quiz",
-            "Suggest video chapters",
-            "Back to previous menu"
-        ]
-        
-        while True:
-            self.print_header(f"GENERATE AI CONTENT: {self.current_note['title']}")
-            print(f"Selected module: {self.current_module['title']}")
-            print()
-            self.print_menu(options)
-            
-            choice = self.get_menu_choice(options)
-            
-            if choice == 1:
-                self.generate_flashcards_from_note()
-            elif choice == 2:
-                self.generate_quiz_from_note()
-            elif choice == 3:
-                self.suggest_video_chapters_from_note()
-            elif choice == 4 or choice == 0:
-                break
-
-    def generate_flashcards_from_note(self):
-        """Generate flashcards from the current note using AI"""
-        self.print_header(f"GENERATE FLASHCARDS: {self.current_note['title']}")
-        
-        print(f"Generating flashcards for module: {self.current_module['title']}")
-        print("This may take a moment...")
-        
-        success, result = self.content_manager.generate_flashcards_from_notes(
-            note_id=self.current_note['_id'],
-            user_id=self.current_user['id'],
-            module_id=self.current_module['_id']
-        )
-        
-        if success:
-            print(f"\n✅ Flashcard deck created successfully with {result['card_count']} cards.")
-        else:
-            print(f"\n❌ Flashcard generation failed: {result}")
-        
-        self.wait_for_enter()
-
-    def generate_quiz_from_note(self):
-        """Generate a quiz from the current note using AI"""
-        self.print_header(f"GENERATE QUIZ: {self.current_note['title']}")
-        
-        print(f"Generating quiz for module: {self.current_module['title']}")
-        print("This may take a moment...")
-        
-        success, result = self.content_manager.generate_quiz_from_notes(
-            note_id=self.current_note['_id'],
-            user_id=self.current_user['id'],
-            module_id=self.current_module['_id']
-        )
-        
-        if success:
-            print(f"\n✅ Quiz created successfully with {result['question_count']} questions.")
-        else:
-            print(f"\n❌ Quiz generation failed: {result}")
-        
-        self.wait_for_enter()
-
-    def suggest_video_chapters_from_note(self):
-        """Generate video chapter suggestions from the current note using AI"""
-        self.print_header(f"SUGGEST VIDEO CHAPTERS: {self.current_note['title']}")
-        
-        print(f"Generating video chapter suggestions for module: {self.current_module['title']}")
-        print("This may take a moment...")
-        
-        success, result = self.content_manager.suggest_video_chapters_from_notes(
-            note_id=self.current_note['_id'],
-            user_id=self.current_user['id'],
-            module_id=self.current_module['_id']
-        )
-        
-        if success:
-            print(f"\n✅ Video chapter suggestions generated successfully.")
-            print("\nSuggested chapters:")
-            for i, chapter in enumerate(result['chapters'], 1):
-                print(f"{i}. {chapter['title']}")
-                print(f"   Description: {chapter['description']}")
-                print()
-        else:
-            print(f"\n❌ Video chapter suggestion generation failed: {result}")
-        
-        self.wait_for_enter()
-
     def view_study_statistics(self):
         """View user study statistics"""
         self.print_header("STUDY STATISTICS")
@@ -1561,7 +2043,179 @@ class AxiomCLI:
         self.clear_screen()
         print("Thank you for using Axiom Learning Platform!")
         print("Goodbye!")
+    
+    def select_module_for_ai_content(self):
+        """Select a module for adding AI-generated content from the current note"""
+        self.print_header(f"SELECT MODULE: {self.current_note['title']}")
+        
+        if not self.current_course:
+            # First select a course
+            courses = self.course_manager.get_user_courses(self.current_user['id'])
+            
+            if not courses:
+                print("You don't have any courses yet. Please create a course first.")
+                self.wait_for_enter()
+                return
+            
+            print("Select a course:")
+            for i, course in enumerate(courses, 1):
+                print(f"{i}. {course['title']}")
+            
+            try:
+                choice = int(input("\nEnter course number (0 to go back): "))
+                if choice == 0:
+                    return
+                
+                if 1 <= choice <= len(courses):
+                    self.current_course = courses[choice - 1]
+                else:
+                    print("❌ Invalid course number.")
+                    self.wait_for_enter()
+                    return
+            except ValueError:
+                print("❌ Please enter a valid number.")
+                self.wait_for_enter()
+                return
+        
+        # Now select a module
+        modules = self.course_manager.get_course_modules(self.current_course['_id'])
+        
+        if not modules:
+            print(f"Course '{self.current_course['title']}' has no modules. Please create a module first.")
+            self.wait_for_enter()
+            # Reset current course
+            self.current_course = None
+            return
+        
+        print(f"\nSelect a module from course '{self.current_course['title']}':")
+        for i, module in enumerate(modules, 1):
+            print(f"{i}. {module['title']}")
+        
+        try:
+            choice = int(input("\nEnter module number (0 to go back): "))
+            if choice == 0:
+                # Reset current course
+                self.current_course = None
+                return
+            
+            if 1 <= choice <= len(modules):
+                self.current_module = modules[choice - 1]
+                self.generate_ai_content_menu_for_note()
+            else:
+                print("❌ Invalid module number.")
+                self.wait_for_enter()
+                # Reset current course
+                self.current_course = None
+                return
+        except ValueError:
+            print("❌ Please enter a valid number.")
+            self.wait_for_enter()
+            # Reset current course
+            self.current_course = None
+            return
+            
+    def generate_ai_content_menu_for_note(self):
+        """Generate AI content options for the selected note and module"""
+        options = [
+            "Generate flashcards",
+            "Generate quiz",
+            "Generate video chapter suggestions",
+            "Back to previous menu"
+        ]
+        
+        while True:
+            self.print_header(f"GENERATE AI CONTENT: {self.current_note['title']}")
+            print(f"Selected module: {self.current_module['title']}")
+            self.print_menu(options)
+            
+            choice = self.get_menu_choice(options)
+            
+            if choice == 1:
+                self.generate_flashcards_from_note()
+            elif choice == 2:
+                self.generate_quiz_from_note()
+            elif choice == 3:
+                self.suggest_video_chapters_from_note()
+            elif choice == 4 or choice == 0:
+                # Reset selected course and module
+                self.current_course = None
+                self.current_module = None
+                break
+                
+    def generate_flashcards_from_note(self):
+        """Generate flashcards from the current note using AI"""
+        self.print_header(f"GENERATE FLASHCARDS: {self.current_note['title']}")
+        
+        print(f"Generating flashcards for module: {self.current_module['title']}")
+        print("This may take a moment...")
+        
+        success, result = self.content_manager.generate_flashcards_from_notes(
+            note_id=self.current_note['_id'],
+            user_id=self.current_user['id'],
+            module_id=self.current_module['_id']
+        )
+        
+        if success:
+            print(f"\n✅ Flashcard deck created successfully with {result['card_count']} cards.")
+            print(f"Title: {result['title']}")
+            print(f"Added to module: {self.current_module['title']}")
+        else:
+            print(f"\n❌ Flashcard generation failed: {result}")
+        
+        self.wait_for_enter()
 
+    def generate_quiz_from_note(self):
+        """Generate a quiz from the current note using AI"""
+        self.print_header(f"GENERATE QUIZ: {self.current_note['title']}")
+        
+        print(f"Generating quiz for module: {self.current_module['title']}")
+        print("This may take a moment...")
+        
+        success, result = self.content_manager.generate_quiz_from_notes(
+            note_id=self.current_note['_id'],
+            user_id=self.current_user['id'],
+            module_id=self.current_module['_id']
+        )
+        
+        if success:
+            print(f"\n✅ Quiz created successfully with {result['question_count']} questions.")
+            print(f"Title: {result['title']}")
+            print(f"Added to module: {self.current_module['title']}")
+        else:
+            print(f"\n❌ Quiz generation failed: {result}")
+        
+        self.wait_for_enter()
+
+    def suggest_video_chapters_from_note(self):
+        """Generate video chapter suggestions from the current note using AI"""
+        self.print_header(f"SUGGEST VIDEO CHAPTERS: {self.current_note['title']}")
+        
+        print(f"Generating video chapter suggestions for module: {self.current_module['title']}")
+        print("This may take a moment...")
+        
+        success, result = self.content_manager.suggest_video_chapters_from_notes(
+            note_id=self.current_note['_id'],
+            user_id=self.current_user['id'],
+            module_id=self.current_module['_id']
+        )
+        
+        if success:
+            print(f"\n✅ Video chapter suggestions generated successfully.")
+            print("\nSuggested chapters:")
+            for i, chapter in enumerate(result['chapters'], 1):
+                print(f"{i}. {chapter['title']}")
+                print(f"   Description: {chapter['description']}")
+                print()
+                
+            # Option to create video chapters
+            create_chapters = input("\nWould you like to create these video chapters? (y/n): ").lower() == 'y'
+            if create_chapters:
+                self.create_video_chapters_from_suggestions(result['chapters'])
+        else:
+            print(f"\n❌ Video chapter suggestion generation failed: {result}")
+        
+        self.wait_for_enter()
+        
     def admin_panel(self):
         """Admin panel for managing the platform"""
         options = [
@@ -1588,7 +2242,7 @@ class AxiomCLI:
                 self.promote_user()
             elif choice == 4 or choice == 0:
                 break
-
+                
     def manage_users_admin(self):
         """Admin interface for managing users"""
         self.print_header("MANAGE USERS")
