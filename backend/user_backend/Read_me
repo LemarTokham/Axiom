@@ -1,0 +1,6 @@
+pip install pymongo
+pip install python-dotenv
+pip install bcrypt
+pip install PyPDF2
+pip install google-generativeai
+pip install docling
