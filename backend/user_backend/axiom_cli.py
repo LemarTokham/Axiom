@@ -1,7 +1,7 @@
 """
 Axiom Learning Platform - Command Line Interface with AI Features
 This script provides a terminal-based interface to interact with the Axiom system.
-Users can register, login, manage profiles, create courses, and generate AI content.
+Users can register, login, manage profiles, create courses, input notes, and generate AI content.
 
 To run this CLI:
     python axiom_cli.py
@@ -216,13 +216,14 @@ class AxiomCLI:
             "View profile",
             "Update profile",
             "Manage courses",
+            "Manage notes",  # Added direct notes management
             "Study statistics",
             "Account settings"
         ]
         
         # Add admin panel option for admin users
         if is_admin:
-            options.insert(3, "Admin Panel")
+            options.insert(4, "Admin Panel")
         
         options.append("Logout")
         
@@ -244,13 +245,14 @@ class AxiomCLI:
             elif choice == 3:
                 self.manage_courses()
             elif choice == 4:
-                if is_admin:
-                    self.admin_panel()
-                else:
-                    self.view_study_statistics()
-            elif (is_admin and choice == 5) or (not is_admin and choice == 4):
+                self.manage_notes()
+            elif choice == 5 and is_admin:
+                self.admin_panel()
+            elif (choice == 5 and not is_admin) or (choice == 6 and is_admin):
+                self.view_study_statistics()
+            elif (choice == 6 and not is_admin) or (choice == 7 and is_admin):
                 self.account_settings()
-            elif (is_admin and choice == 6) or (not is_admin and choice == 5) or choice == 0:
+            elif (choice == 7 and not is_admin) or (choice == 8 and is_admin) or choice == 0:
                 self.logout()
                 break
     
@@ -849,10 +851,11 @@ class AxiomCLI:
         
         if success:
             print(f"\n✅ {message}")
-            # Update current course
-            updated_course = self.course_manager.get_course(self.current_course['_id'])
-            if updated_course:
-                self.current_course = updated_course
+            # Update the current course object with new values
+            if title:
+                self.current_course['title'] = title
+            if description:
+                self.current_course['description'] = description
         else:
             print(f"\n❌ {message}")
         
@@ -862,7 +865,7 @@ class AxiomCLI:
         """Delete the current course"""
         self.print_header(f"DELETE COURSE: {self.current_course['title']}")
         
-        print("⚠️ WARNING: This will permanently delete the course and all its modules and content.")
+        print("⚠️ WARNING: This will permanently delete the course and all its modules.")
         print("This action cannot be undone.")
         
         confirm = input("\nType the course title to confirm deletion: ")
@@ -871,7 +874,7 @@ class AxiomCLI:
             print("\n❌ Deletion canceled. Title does not match.")
             self.wait_for_enter()
             return False
-        
+            
         success, message = self.course_manager.delete_course(
             course_id=self.current_course['_id'],
             user_id=self.current_user['id']
@@ -914,7 +917,7 @@ class AxiomCLI:
         modules = self.course_manager.get_course_modules(self.current_course['_id'])
         
         if not modules:
-            print("This course has no modules yet.")
+            print("This course doesn't have any modules yet.")
             self.wait_for_enter()
             return
         
@@ -924,6 +927,7 @@ class AxiomCLI:
             print(f"{i}. {module['title']}")
             print(f"   Description: {module['description']}")
             print(f"   Created: {module['created_at']}")
+            print(f"   Last updated: {module['last_updated']}")
             print()
         
         # Allow selecting a module
@@ -975,9 +979,10 @@ class AxiomCLI:
         options = [
             "View module details",
             "Edit module",
-            "Manage content",
-            "Study content",  # New option for studying
-            "Generate AI content for this module",
+            "View module content",
+            "Create flashcard deck",
+            "Create quiz",
+            "Create video chapter",
             "Delete module",
             "Back to modules"
         ]
@@ -993,413 +998,19 @@ class AxiomCLI:
             elif choice == 2:
                 self.edit_module()
             elif choice == 3:
-                self.manage_content()
+                self.view_module_content()
             elif choice == 4:
-                self.study_module_content()  # New function for studying
+                self.create_flashcard_deck()
             elif choice == 5:
-                self.generate_ai_content_for_module()
+                self.create_quiz()
             elif choice == 6:
+                self.create_video_chapter()
+            elif choice == 7:
                 if self.delete_module():
                     break
-            elif choice == 7 or choice == 0:
+            elif choice == 8 or choice == 0:
                 self.current_module = None
                 break
-    
-    def study_module_content(self):
-        """Interface for studying module content (flashcards and quizzes)"""
-        # Get module content
-        content = self.content_manager.get_module_content(self.current_module['_id'])
-        
-        # Create options based on available content
-        options = []
-        
-        # Add flashcard deck options
-        for i, deck in enumerate(content.get('flashcard_decks', []), 1):
-            options.append(f"Study Flashcards: {deck['title']} ({len(deck['cards'])} cards)")
-        
-        # Add quiz options
-        for i, quiz in enumerate(content.get('quizzes', []), 1):
-            options.append(f"Take Quiz: {quiz['title']} ({len(quiz['questions'])} questions)")
-        
-        # Add back option
-        options.append("Back to module menu")
-        
-        # If no content is available
-        if len(options) == 1:  # Only the "Back" option
-            self.print_header(f"STUDY CONTENT: {self.current_module['title']}")
-            print("This module has no flashcards or quizzes available for study.")
-            print("Please add content to this module first.")
-            self.wait_for_enter()
-            return
-        
-        while True:
-            self.print_header(f"STUDY CONTENT: {self.current_module['title']}")
-            self.print_menu(options)
-            
-            choice = self.get_menu_choice(options)
-            
-            if choice == 0 or choice == len(options):
-                break
-            
-            # Determine if flashcard or quiz was selected
-            flashcard_count = len(content.get('flashcard_decks', []))
-            
-            if choice <= flashcard_count:
-                # Study the selected flashcard deck
-                self.study_flashcard_deck(content['flashcard_decks'][choice - 1])
-            else:
-                # Take the selected quiz
-                self.take_quiz(content['quizzes'][choice - flashcard_count - 1])
-    
-    def study_flashcard_deck(self, deck):
-        """Interface for studying a flashcard deck"""
-        cards = deck['cards']
-        current_card_index = 0
-        show_front = True
-        
-        if not cards:
-            self.print_header(f"STUDY FLASHCARDS: {deck['title']}")
-            print("This flashcard deck has no cards.")
-            self.wait_for_enter()
-            return
-        
-        # Track study session statistics
-        start_time = time.time()
-        cards_reviewed = 0
-        
-        while True:
-            self.print_header(f"STUDY FLASHCARDS: {deck['title']}")
-            
-            # Display card count and progress
-            print(f"Card {current_card_index + 1} of {len(cards)}")
-            print(f"Reviewed: {cards_reviewed}")
-            print()
-            
-            # Display the current card
-            card = cards[current_card_index]
-            
-            print("-" * 50)
-            if show_front:
-                print("FRONT:")
-                print(card['front'])
-            else:
-                print("FRONT:")
-                print(card['front'])
-                print()
-                print("BACK:")
-                print(card['back'])
-            print("-" * 50)
-            
-            print("\nOptions:")
-            if show_front:
-                print("  F = Flip card")
-                print("  N = Next card (mark as not reviewed)")
-            else:
-                print("  F = Flip card")
-                print("  N = Next card (mark as reviewed)")
-            print("  P = Previous card")
-            print("  R = Restart deck")
-            print("  S = Shuffle cards")
-            print("  Q = Quit studying")
-            
-            action = input("\nEnter option: ").lower()
-            
-            if action == 'f':
-                # Flip the card
-                show_front = not show_front
-            elif action == 'n':
-                # Go to next card
-                if not show_front:
-                    cards_reviewed += 1
-                    
-                # Update show_front for next card
-                show_front = True
-                
-                # Move to next card or wrap around
-                current_card_index = (current_card_index + 1) % len(cards)
-            elif action == 'p':
-                # Go to previous card
-                show_front = True
-                current_card_index = (current_card_index - 1) % len(cards)
-            elif action == 'r':
-                # Restart the deck
-                current_card_index = 0
-                show_front = True
-                cards_reviewed = 0
-            elif action == 's':
-                # Shuffle the cards
-                import random
-                random.shuffle(cards)
-                current_card_index = 0
-                show_front = True
-                cards_reviewed = 0
-                print("\nCards shuffled!")
-                time.sleep(1)
-            elif action == 'q':
-                # End the session and update stats
-                try:
-                    study_time = round((time.time() - start_time) / 60)  # In minutes
-                    
-                    # Update user study statistics
-                    success, message = self.profile_manager.update_study_statistics(
-                        user_id=self.current_user['id'],
-                        study_time=study_time,
-                        flashcards_reviewed=cards_reviewed,
-                        quizzes_completed=0
-                    )
-                    
-                    if not success:
-                        print(f"\n⚠️ {message}")
-                except Exception as e:
-                    print(f"\n⚠️ Error updating study statistics: {str(e)}")
-                
-                # Show session summary
-                self.print_header(f"STUDY SESSION SUMMARY: {deck['title']}")
-                print(f"Session duration: {study_time} minutes")
-                print(f"Cards reviewed: {cards_reviewed}")
-                print(f"Cards in deck: {len(cards)}")
-                if len(cards) > 0:
-                    print(f"Completion rate: {round(cards_reviewed / len(cards) * 100)}%")
-                
-                self.wait_for_enter()
-                break
-                # End the session and update stats
-                study_time = round((time.time() - start_time) / 60)  # In minutes
-                
-                # Update user study statistics
-                self.profile_manager.update_study_statistics(
-                    user_id=self.current_user['id'],
-                    study_time=study_time,
-                    flashcards_reviewed=cards_reviewed,
-                    quizzes_completed=0
-                )
-                
-                # Show session summary
-                self.print_header(f"STUDY SESSION SUMMARY: {deck['title']}")
-                print(f"Session duration: {study_time} minutes")
-                print(f"Cards reviewed: {cards_reviewed}")
-                print(f"Cards in deck: {len(cards)}")
-                if len(cards) > 0:
-                    print(f"Completion rate: {round(cards_reviewed / len(cards) * 100)}%")
-                
-                self.wait_for_enter()
-                break
-    
-    def take_quiz(self, quiz):
-        """Interface for taking a quiz"""
-        questions = quiz['questions']
-        
-        if not questions:
-            self.print_header(f"TAKE QUIZ: {quiz['title']}")
-            print("This quiz has no questions.")
-            self.wait_for_enter()
-            return
-        
-        # Track study session statistics
-        start_time = time.time()
-        correct_answers = 0
-        
-        # Make a copy of questions to potentially shuffle
-        quiz_questions = questions.copy()
-        
-        # Ask user if they want to shuffle questions
-        self.print_header(f"TAKE QUIZ: {quiz['title']}")
-        print(f"This quiz has {len(quiz_questions)} questions.")
-        shuffle = input("Would you like to shuffle the questions? (y/n): ").lower() == 'y'
-        
-        if shuffle:
-            import random
-            random.shuffle(quiz_questions)
-        
-        # Take the quiz
-        answers = []
-        for i, question in enumerate(quiz_questions, 1):
-            self.print_header(f"QUIZ: {quiz['title']} - Question {i}/{len(quiz_questions)}")
-            
-            print(question['question'])
-            print()
-            
-            # Display options
-            for j, option in enumerate(question['options'], 1):
-                print(f"{j}. {option}")
-            
-            # Get user's answer
-            while True:
-                try:
-                    answer_index = int(input("\nEnter your answer (number): ")) - 1
-                    if 0 <= answer_index < len(question['options']):
-                        user_answer = question['options'][answer_index]
-                        break
-                    print(f"Please enter a number between 1 and {len(question['options'])}.")
-                except ValueError:
-                    print("Please enter a valid number.")
-            
-            # Record answer
-            is_correct = user_answer == question['correct_answer']
-            if is_correct:
-                correct_answers += 1
-            
-            answers.append({
-                'question': question['question'],
-                'user_answer': user_answer,
-                'correct_answer': question['correct_answer'],
-                'is_correct': is_correct
-            })
-        
-        # Calculate results
-        score = round(correct_answers / len(quiz_questions) * 100)
-        study_time = round((time.time() - start_time) / 60)  # In minutes
-        
-        # Update user study statistics
-        self.profile_manager.update_study_statistics(
-            user_id=self.current_user['id'],
-            study_time=study_time,
-            flashcards_reviewed=0,
-            quizzes_completed=1
-        )
-        
-        # Show results
-        self.print_header(f"QUIZ RESULTS: {quiz['title']}")
-        print(f"Score: {score}% ({correct_answers} of {len(quiz_questions)} correct)")
-        print(f"Time taken: {study_time} minutes")
-        print()
-        
-        # Ask if user wants to review answers
-        review = input("Would you like to review your answers? (y/n): ").lower() == 'y'
-        
-        if review:
-            for i, answer in enumerate(answers, 1):
-                self.print_header(f"REVIEW: {quiz['title']} - Question {i}/{len(answers)}")
-                
-                print(answer['question'])
-                print()
-                print(f"Your answer: {answer['user_answer']}")
-                print(f"Correct answer: {answer['correct_answer']}")
-                print()
-                print(f"{'✓ Correct' if answer['is_correct'] else '✗ Incorrect'}")
-                
-                if i < len(answers):
-                    input("\nPress Enter for next question...")
-        
-        self.wait_for_enter()
-    
-    def generate_ai_content_for_module(self):
-        """Generate AI content specifically for the current module"""
-        options = [
-            "Generate flashcards from notes",
-            "Generate quiz from notes",
-            "Generate video chapter suggestions from notes",
-            "Back to module menu"
-        ]
-        
-        while True:
-            self.print_header(f"GENERATE AI CONTENT: {self.current_module['title']}")
-            print(f"Course: {self.current_course['title']}")
-            self.print_menu(options)
-            
-            choice = self.get_menu_choice(options)
-            
-            if choice == 1:
-                self.generate_module_flashcards()
-            elif choice == 2:
-                self.generate_module_quiz()
-            elif choice == 3:
-                self.generate_module_video_chapters()
-            elif choice == 4 or choice == 0:
-                break
-    
-    def generate_module_flashcards(self):
-        """Generate AI flashcards for current module from notes"""
-        # Select a note (the module is already selected)
-        if not self.select_note_for_generation(f"GENERATE FLASHCARDS FOR: {self.current_module['title']}"):
-            return
-            
-        # Generate flashcards
-        self.print_header(f"GENERATING FLASHCARDS: {self.current_note['title']}")
-        print(f"For module: {self.current_module['title']}")
-        print("This may take a moment...")
-        
-        success, result = self.content_manager.generate_flashcards_from_notes(
-            note_id=self.current_note['_id'],
-            user_id=self.current_user['id'],
-            module_id=self.current_module['_id']
-        )
-        
-        if success:
-            print(f"\n✅ Flashcard deck created successfully with {result['card_count']} cards.")
-            print(f"Title: {result['title']}")
-        else:
-            print(f"\n❌ Flashcard generation failed: {result}")
-        
-        self.wait_for_enter()
-        
-        # Reset selected note
-        self.current_note = None
-    
-    def generate_module_quiz(self):
-        """Generate AI quiz for current module from notes"""
-        # Select a note (the module is already selected)
-        if not self.select_note_for_generation(f"GENERATE QUIZ FOR: {self.current_module['title']}"):
-            return
-            
-        # Generate quiz
-        self.print_header(f"GENERATING QUIZ: {self.current_note['title']}")
-        print(f"For module: {self.current_module['title']}")
-        print("This may take a moment...")
-        
-        success, result = self.content_manager.generate_quiz_from_notes(
-            note_id=self.current_note['_id'],
-            user_id=self.current_user['id'],
-            module_id=self.current_module['_id']
-        )
-        
-        if success:
-            print(f"\n✅ Quiz created successfully with {result['question_count']} questions.")
-            print(f"Title: {result['title']}")
-        else:
-            print(f"\n❌ Quiz generation failed: {result}")
-        
-        self.wait_for_enter()
-        
-        # Reset selected note
-        self.current_note = None
-    
-    def generate_module_video_chapters(self):
-        """Generate AI video chapter suggestions for current module from notes"""
-        # Select a note (the module is already selected)
-        if not self.select_note_for_generation(f"GENERATE VIDEO CHAPTERS FOR: {self.current_module['title']}"):
-            return
-            
-        # Generate video chapter suggestions
-        self.print_header(f"GENERATING VIDEO CHAPTERS: {self.current_note['title']}")
-        print(f"For module: {self.current_module['title']}")
-        print("This may take a moment...")
-        
-        success, result = self.content_manager.suggest_video_chapters_from_notes(
-            note_id=self.current_note['_id'],
-            user_id=self.current_user['id'],
-            module_id=self.current_module['_id']
-        )
-        
-        if success:
-            print(f"\n✅ Video chapter suggestions generated successfully.")
-            print("\nSuggested chapters:")
-            for i, chapter in enumerate(result['chapters'], 1):
-                print(f"{i}. {chapter['title']}")
-                print(f"   Description: {chapter['description']}")
-                print()
-                
-            # Option to create video chapters
-            create_chapters = input("\nWould you like to create these video chapters? (y/n): ").lower() == 'y'
-            if create_chapters:
-                self.create_video_chapters_from_suggestions(result['chapters'])
-        else:
-            print(f"\n❌ Video chapter suggestion generation failed: {result}")
-        
-        self.wait_for_enter()
-        
-        # Reset selected note
-        self.current_note = None
     
     def view_module_details(self):
         """View details of the current module"""
@@ -1410,29 +1021,6 @@ class AxiomCLI:
         print(f"Description: {self.current_module['description']}")
         print(f"Created: {self.current_module['created_at']}")
         print(f"Last updated: {self.current_module['last_updated']}")
-        
-        # Get content
-        content = self.content_manager.get_module_content(self.current_module['_id'])
-        
-        if content['flashcard_decks'] or content['quizzes'] or content['video_chapters']:
-            print("\nContent:")
-            
-            if content['flashcard_decks']:
-                print(f"  Flashcard decks ({len(content['flashcard_decks'])}):")
-                for i, deck in enumerate(content['flashcard_decks'], 1):
-                    print(f"    {i}. {deck['title']} ({len(deck['cards'])} cards)")
-            
-            if content['quizzes']:
-                print(f"  Quizzes ({len(content['quizzes'])}):")
-                for i, quiz in enumerate(content['quizzes'], 1):
-                    print(f"    {i}. {quiz['title']} ({len(quiz['questions'])} questions)")
-            
-            if content['video_chapters']:
-                print(f"  Video chapters ({len(content['video_chapters'])}):")
-                for i, chapter in enumerate(content['video_chapters'], 1):
-                    print(f"    {i}. {chapter['title']}")
-        else:
-            print("\nThis module has no content yet.")
         
         self.wait_for_enter()
     
@@ -1465,10 +1053,11 @@ class AxiomCLI:
         
         if success:
             print(f"\n✅ {message}")
-            # Update current module
-            updated_module = self.course_manager.get_module(self.current_module['_id'])
-            if updated_module:
-                self.current_module = updated_module
+            # Update the current module object with new values
+            if title:
+                self.current_module['title'] = title
+            if description:
+                self.current_module['description'] = description
         else:
             print(f"\n❌ {message}")
         
@@ -1487,7 +1076,7 @@ class AxiomCLI:
             print("\n❌ Deletion canceled. Title does not match.")
             self.wait_for_enter()
             return False
-        
+            
         success, message = self.course_manager.delete_module(
             module_id=self.current_module['_id'],
             user_id=self.current_user['id']
@@ -1502,64 +1091,74 @@ class AxiomCLI:
             self.wait_for_enter()
             return False
     
-    def manage_content(self):
-        """Manage content for the current module"""
-        options = [
-            "Create flashcard deck",
-            "Create quiz",
-            "Create video chapter",
-            "Generate AI content from notes",  # New option
-            "Back to module menu"
-        ]
+    def view_module_content(self):
+        """View all content in the current module"""
+        self.print_header(f"MODULE CONTENT: {self.current_module['title']}")
         
-        while True:
-            self.print_header(f"MANAGE CONTENT: {self.current_module['title']}")
-            self.print_menu(options)
-            
-            choice = self.get_menu_choice(options)
-            
-            if choice == 1:
-                self.create_flashcard_deck()
-            elif choice == 2:
-                self.create_quiz()
-            elif choice == 3:
-                self.create_video_chapter()
-            elif choice == 4:
-                self.generate_ai_content_for_module()  # Reuse the AI content generation function
-            elif choice == 5 or choice == 0:
-                break
+        content = self.content_manager.get_module_content(self.current_module['_id'])
+        
+        # Flashcard decks
+        flashcards = content['flashcard_decks']
+        if flashcards:
+            print(f"\nFlashcard Decks ({len(flashcards)}):")
+            for i, deck in enumerate(flashcards, 1):
+                print(f"  {i}. {deck['title']} - {len(deck['cards'])} cards")
+        else:
+            print("\nNo flashcard decks in this module.")
+        
+        # Quizzes
+        quizzes = content['quizzes']
+        if quizzes:
+            print(f"\nQuizzes ({len(quizzes)}):")
+            for i, quiz in enumerate(quizzes, 1):
+                print(f"  {i}. {quiz['title']} - {len(quiz['questions'])} questions")
+        else:
+            print("\nNo quizzes in this module.")
+        
+        # Video chapters
+        videos = content['video_chapters']
+        if videos:
+            print(f"\nVideo Chapters ({len(videos)}):")
+            for i, video in enumerate(videos, 1):
+                duration = video['end_time'] - video['start_time']
+                print(f"  {i}. {video['title']} - {duration} seconds")
+        else:
+            print("\nNo video chapters in this module.")
+        
+        self.wait_for_enter()
     
     def create_flashcard_deck(self):
-        """Create a new flashcard deck"""
+        """Create a new flashcard deck for the current module"""
         self.print_header(f"CREATE FLASHCARD DECK: {self.current_module['title']}")
         
         title = input("Deck title: ")
+        
         if not title:
             print("❌ Title is required.")
             self.wait_for_enter()
             return
         
-        # Create cards
         cards = []
-        print("\nEnter flashcards (leave front blank to finish):")
+        print("\nEnter flashcards (leave front empty when done):")
         
         while True:
-            print(f"\nCard {len(cards) + 1}:")
+            print("\n--- New Card ---")
             front = input("Front: ")
             
             if not front:
                 break
-            
+                
             back = input("Back: ")
             
             if not back:
                 print("❌ Back content is required.")
                 continue
-            
+                
             cards.append({"front": front, "back": back})
+            print(f"✅ Card added. Total cards: {len(cards)}")
         
         if not cards:
-            print("\n❌ At least one card is required.")
+            print("\n❌ No cards added. Deck creation canceled.")
             self.wait_for_enter()
             return
         
@@ -1574,7 +1173,7 @@ class AxiomCLI:
             print(f"\n✅ Flashcard deck created successfully with {result['card_count']} cards.")
         else:
             print(f"\n❌ Flashcard deck creation failed: {result}")
-                
+        
         self.wait_for_enter()
     
     def create_quiz(self):
@@ -1588,40 +1187,37 @@ class AxiomCLI:
             self.wait_for_enter()
             return
         
-        # Create questions
         questions = []
-        print("\nEnter questions (leave question text blank to finish):")
+        print("\nEnter quiz questions (leave question text empty when done):")
         
         while True:
-            print(f"\nQuestion {len(questions) + 1}:")
+            print("\n--- New Question ---")
             question_text = input("Question: ")
             
             if not question_text:
                 break
-            
+                
             # Get options
             options = []
-            print("Enter options (leave option blank to finish):")
-            while True:
-                option = input(f"Option {len(options) + 1}: ")
-                if not option:
-                    break
-                options.append(option)
-            
+            for i in range(1, 5):
+                option = input(f"Option {i}: ")
+                if option:
+                    options.append(option)
+                    
             if len(options) < 2:
                 print("❌ At least 2 options are required.")
                 continue
-            
-            # Get correct answer
+                
+            # Select correct answer
             while True:
-                print("\nOptions:")
+                print("\nSelect the correct answer:")
                 for i, option in enumerate(options, 1):
                     print(f"{i}. {option}")
-                
+                    
                 try:
-                    correct_index = int(input("Enter the number of the correct option: ")) - 1
-                    if 0 <= correct_index < len(options):
-                        correct_answer = options[correct_index]
+                    correct_idx = int(input("\nCorrect option number: ")) - 1
+                    if 0 <= correct_idx < len(options):
+                        correct_answer = options[correct_idx]
                         break
                     print("❌ Invalid option number.")
                 except ValueError:
@@ -1632,9 +1228,11 @@ class AxiomCLI:
                 "options": options,
                 "correct_answer": correct_answer
             })
+            
+            print(f"✅ Question added. Total questions: {len(questions)}")
         
         if not questions:
-            print("\n❌ At least one question is required.")
+            print("\n❌ No questions added. Quiz creation canceled.")
             self.wait_for_enter()
             return
         
@@ -1651,7 +1249,7 @@ class AxiomCLI:
             print(f"\n❌ Quiz creation failed: {result}")
         
         self.wait_for_enter()
-
+    
     def create_video_chapter(self):
         """Create a new video chapter for the current module"""
         self.print_header(f"CREATE VIDEO CHAPTER: {self.current_module['title']}")
@@ -1704,6 +1302,8 @@ class AxiomCLI:
         options = [
             "View my notes",
             "Upload new notes",
+            "Input notes directly",  # Added new option for direct text input
+            "Generate AI content",   # Added direct access to AI generation
             "Back to user menu"
         ]
         
@@ -1717,9 +1317,76 @@ class AxiomCLI:
                 self.view_notes()
             elif choice == 2:
                 self.upload_notes()
-            elif choice == 3 or choice == 0:
+            elif choice == 3:
+                self.input_notes_directly()  # New function for direct text input
+            elif choice == 4:
+                self.generate_ai_content_menu()  # Direct access to AI menu
+            elif choice == 5 or choice == 0:
                 break
-    
+
+    def input_notes_directly(self):
+        """Input notes directly as text rather than uploading a file"""
+        self.print_header("INPUT NOTES DIRECTLY")
+        
+        title = input("Note title: ")
+        topic = input("Note topic: ")
+        
+        if not title:
+            print("❌ Title is required.")
+            self.wait_for_enter()
+            return
+        
+        print("\nEnter your notes below. Type 'END' on a new line when finished:")
+        print("-" * 50)
+        
+        # Collect note content
+        note_content = []
+        while True:
+            line = input()
+            if line.strip() == "END":
+                break
+            note_content.append(line)
+        
+        # Join the content into a single string
+        content = "\n".join(note_content)
+        
+        if not content.strip():
+            print("❌ Note content cannot be empty.")
+            self.wait_for_enter()
+            return
+            
+        # Save the note to the database
+        try:
+            note_id = str(ObjectId())
+            timestamp = datetime.now()
+            
+            self.db['notes'].insert_one({
+                "_id": ObjectId(note_id),
+                "user_id": self.current_user['id'],
+                "title": title,
+                "topic": topic,
+                "content": content,
+                "content_preview": content[:200] + "..." if len(content) > 200 else content,
+                "created_at": timestamp,
+                "last_updated": timestamp,
+                "source_type": "direct_input"  # Mark as directly input rather than uploaded
+            })
+            
+            print(f"\n✅ Notes saved successfully with ID: {note_id}")
+            
+            # Offer to generate AI content right away
+            generate_content = input("\nWould you like to generate AI content from these notes now? (y/n): ").lower() == 'y'
+            if generate_content:
+                # Get the full note object
+                note = self.content_manager.get_note(note_id, self.current_user['id'])
+                if note:
+                    self.current_note = note
+                    self.select_module_for_ai_content()
+        except Exception as e:
+            print(f"\n❌ Error saving notes: {str(e)}")
+        
+        self.wait_for_enter()
+
     def view_notes(self):
         """View user's notes"""
         self.print_header("MY NOTES")
@@ -1750,7 +1417,7 @@ class AxiomCLI:
             pass
             
         self.current_note = None
-    
+
     def upload_notes(self):
         """Upload new notes"""
         self.print_header("UPLOAD NEW NOTES")
@@ -1844,7 +1511,7 @@ class AxiomCLI:
         print("-" * 50)
         
         self.wait_for_enter()
-    
+
     def delete_note(self):
         """Delete the current note"""
         self.print_header(f"DELETE NOTE: {self.current_note['title']}")
@@ -1889,7 +1556,7 @@ class AxiomCLI:
             print(f"Last activity: {stats['last_activity']}")
         
         self.wait_for_enter()
-    
+
     def account_settings(self):
         """Manage account settings"""
         options = [
@@ -1918,7 +1585,7 @@ class AxiomCLI:
                     return
             elif choice == 5 or choice == 0:
                 break
-    
+
     def change_password(self):
         """Change user password"""
         self.print_header("CHANGE PASSWORD")
@@ -1942,7 +1609,7 @@ class AxiomCLI:
         
         print(f"\n{'✅' if success else '❌'} {message}")
         self.wait_for_enter()
-    
+
     def request_new_password_reset(self):
         """Request a new password reset token"""
         self.print_header("REQUEST PASSWORD RESET")
@@ -1965,7 +1632,7 @@ class AxiomCLI:
             print(f"\n❌ Password reset request failed: {result}")
         
         self.wait_for_enter()
-    
+
     def deactivate_account(self):
         """Deactivate the current user account"""
         self.print_header("DEACTIVATE ACCOUNT")
@@ -1996,7 +1663,7 @@ class AxiomCLI:
             print(f"\n❌ {message}")
             self.wait_for_enter()
             return False
-    
+
     def delete_account(self):
         """Delete the current user account"""
         self.print_header("DELETE ACCOUNT")
@@ -2027,7 +1694,7 @@ class AxiomCLI:
             print(f"\n❌ {message}")
             self.wait_for_enter()
             return False
-    
+
     def logout(self):
         """Log out the current user"""
         self.print_header("LOGOUT")
@@ -2037,13 +1704,13 @@ class AxiomCLI:
         self.current_user = None
         print("✅ You have been logged out successfully.")
         self.wait_for_enter()
-    
+
     def exit_program(self):
         """Exit the program"""
         self.clear_screen()
         print("Thank you for using Axiom Learning Platform!")
         print("Goodbye!")
-    
+
     def select_module_for_ai_content(self):
         """Select a module for adding AI-generated content from the current note"""
         self.print_header(f"SELECT MODULE: {self.current_note['title']}")
@@ -2086,7 +1753,7 @@ class AxiomCLI:
             # Reset current course
             self.current_course = None
             return
-        
+       
         print(f"\nSelect a module from course '{self.current_course['title']}':")
         for i, module in enumerate(modules, 1):
             print(f"{i}. {module['title']}")
@@ -2113,7 +1780,7 @@ class AxiomCLI:
             # Reset current course
             self.current_course = None
             return
-            
+           
     def generate_ai_content_menu_for_note(self):
         """Generate AI content options for the selected note and module"""
         options = [
@@ -2220,7 +1887,7 @@ class AxiomCLI:
         """Admin panel for managing the platform"""
         options = [
             "Manage Users",
-            "System Statistics",
+            "System Statistics", 
             "Promote User to Admin",
             "Back to User Menu"
         ]
@@ -2242,67 +1909,87 @@ class AxiomCLI:
                 self.promote_user()
             elif choice == 4 or choice == 0:
                 break
-                
+
     def manage_users_admin(self):
-        """Admin interface for managing users"""
+        """Admin function to manage users"""
         self.print_header("MANAGE USERS")
         
-        # Fetch all users from the database
-        all_users = list(self.db['users'].find({}))
+        # Get all users (admin function)
+        users = list(self.db['users'].find({}, {
+            "username": 1, 
+            "email": 1, 
+            "first_name": 1, 
+            "last_name": 1,
+            "is_active": 1,
+            "is_verified": 1,
+            "is_admin": 1,
+            "created_at": 1,
+            "last_login": 1
+        }))
         
-        if not all_users:
+        if not users:
             print("No users found in the system.")
             self.wait_for_enter()
             return
         
-        # Display all users with index numbers
-        print(f"Found {len(all_users)} users in the system:\n")
+        print(f"Found {len(users)} users:\n")
         
-        for i, user in enumerate(all_users, 1):
-            status = "🟢 Active" if user.get("is_active", True) else "🔴 Deactivated"
-            admin = "👑 Admin" if user.get("is_admin", False) else "👤 User"
-            verified = "✓ Verified" if user.get("is_verified", False) else "✗ Unverified"
+        for i, user in enumerate(users, 1):
+            status_badges = []
+            if user.get('is_admin', False):
+                status_badges.append("🔑 ADMIN")
+            if not user.get('is_active', True):
+                status_badges.append("❌ INACTIVE")
+            if not user.get('is_verified', False):
+                status_badges.append("⚠️ UNVERIFIED")
+                
+            status = f" [{' | '.join(status_badges)}]" if status_badges else ""
             
-            print(f"{i}. {user['username']} ({user['email']}) - {status}, {admin}, {verified}")
+            print(f"{i}. {user['username']}{status}")
             print(f"   Name: {user.get('first_name', '')} {user.get('last_name', '')}")
-            print(f"   Created: {user.get('created_at', 'N/A')}")
-            print(f"   Last Login: {user.get('last_login', 'Never')}")
+            print(f"   Email: {user.get('email', '')}")
+            print(f"   Created: {user.get('created_at', 'Unknown')}")
+            print(f"   Last login: {user.get('last_login', 'Never')}")
             print()
         
-        # Allow selecting a user to manage
+        # Allow selecting a user
         try:
             choice = int(input("Enter user number to manage (0 to go back): "))
-            if 1 <= choice <= len(all_users):
-                selected_user = all_users[choice - 1]
-                self.manage_single_user(selected_user)
+            if 1 <= choice <= len(users):
+                selected_user = users[choice - 1]
+                self.manage_user_admin(selected_user)
         except ValueError:
             pass
 
-    def manage_single_user(self, user):
-        """Admin interface for managing a single user"""
-        user_id = str(user["_id"])
-        is_active = user.get("is_active", True)
-        is_admin = user.get("is_admin", False)
-        is_verified = user.get("is_verified", False)
-        
+    def manage_user_admin(self, user):
+        """Admin function to manage a specific user"""
         options = [
-            f"{'Deactivate' if is_active else 'Activate'} User",
-            f"{'Revoke Admin' if is_admin else 'Make Admin'}",
-            f"{'Revoke Verification' if is_verified else 'Verify Email'}",
-            "Reset User Password",
-            "View User Courses",
-            "Delete User Account",
-            "Back to User List"
+            "View user details",
+            "Toggle admin status",
+            "Toggle active status",
+            "Reset user password",
+            "Delete user account",
+            "Back to user list"
         ]
+        
+        user_id = str(user['_id'])
         
         while True:
             self.print_header(f"MANAGE USER: {user['username']}")
-            print(f"User ID: {user_id}")
-            print(f"Email: {user['email']}")
+            
+            # Show current status
+            status_badges = []
+            if user.get('is_admin', False):
+                status_badges.append("🔑 ADMIN")
+            if not user.get('is_active', True):
+                status_badges.append("❌ INACTIVE")
+            if not user.get('is_verified', False):
+                status_badges.append("⚠️ UNVERIFIED")
+                
+            status = f" [{' | '.join(status_badges)}]" if status_badges else ""
+            print(f"User: {user['username']}{status}")
             print(f"Name: {user.get('first_name', '')} {user.get('last_name', '')}")
-            print(f"Status: {'🟢 Active' if is_active else '🔴 Deactivated'}")
-            print(f"Admin: {'👑 Yes' if is_admin else '👤 No'}")
-            print(f"Verified: {'✓ Yes' if is_verified else '✗ No'}")
+            print(f"Email: {user.get('email', '')}")
             print()
             
             self.print_menu(options)
@@ -2310,146 +1997,207 @@ class AxiomCLI:
             choice = self.get_menu_choice(options)
             
             if choice == 1:
-                # Toggle active status
-                new_status = not is_active
-                self.db['users'].update_one(
-                    {"_id": ObjectId(user_id)},
-                    {"$set": {"is_active": new_status}}
-                )
-                print(f"✅ User {'activated' if new_status else 'deactivated'} successfully")
-                is_active = new_status
-                options[0] = f"{'Deactivate' if is_active else 'Activate'} User"
-                self.wait_for_enter()
-                
+                self.view_user_details_admin(user_id)
             elif choice == 2:
-                # Toggle admin status
-                new_status = not is_admin
-                self.db['users'].update_one(
-                    {"_id": ObjectId(user_id)},
-                    {"$set": {"is_admin": new_status}}
-                )
-                print(f"✅ User {'promoted to admin' if new_status else 'demoted from admin'} successfully")
-                is_admin = new_status
-                options[1] = f"{'Revoke Admin' if is_admin else 'Make Admin'}"
-                self.wait_for_enter()
-                
+                user = self.toggle_admin_status(user_id, user)
             elif choice == 3:
-                # Toggle verification status
-                new_status = not is_verified
-                self.db['users'].update_one(
-                    {"_id": ObjectId(user_id)},
-                    {"$set": {"is_verified": new_status}}
-                )
-                print(f"✅ User {'verified' if new_status else 'unverified'} successfully")
-                is_verified = new_status
-                options[2] = f"{'Revoke Verification' if is_verified else 'Verify Email'}"
-                self.wait_for_enter()
-                
+                user = self.toggle_user_active_status(user_id, user)
             elif choice == 4:
-                # Reset user password
-                self.reset_user_password(user_id)
-                
+                self.reset_user_password_admin(user_id)
             elif choice == 5:
-                # View user courses
-                self.view_user_courses_admin(user_id)
-                
-            elif choice == 6:
-                # Delete user account
-                if self.delete_user_account_admin(user_id):
+                if self.delete_user_admin(user_id):
                     break
-                    
-            elif choice == 7 or choice == 0:
+            elif choice == 6 or choice == 0:
                 break
 
-    def reset_user_password(self, user_id):
-        """Admin function to reset a user's password"""
-        self.print_header("RESET USER PASSWORD")
+    def view_user_details_admin(self, user_id):
+        """Admin function to view detailed user information"""
+        self.print_header("USER DETAILS")
         
-        print("⚠️ This will reset the user's password.")
-        print("The user will need to use this new password to log in.")
+        # Get full user profile including stats
+        user = self.db['users'].find_one({"_id": ObjectId(user_id)})
         
-        # Generate a new password or enter custom one
-        generate_random = input("Generate random password? (y/n): ").lower() == 'y'
-        
-        if generate_random:
-            import random
-            import string
-            
-            # Generate a random password that meets requirements
-            chars = string.ascii_letters + string.digits + '!@#$%^&*'
-            new_password = ''.join(random.choice(chars) for _ in range(12))
-            
-            # Ensure it meets requirements
-            if not any(c.islower() for c in new_password):
-                new_password = new_password[:-1] + random.choice(string.ascii_lowercase)
-            if not any(c.isupper() for c in new_password):
-                new_password = new_password[:-1] + random.choice(string.ascii_uppercase)
-            if not any(c.isdigit() for c in new_password):
-                new_password = new_password[:-1] + random.choice(string.digits)
-            if not any(c in '!@#$%^&*' for c in new_password):
-                new_password = new_password[:-1] + random.choice('!@#$%^&*')
-        else:
-            # Enter custom password
-            while True:
-                new_password = input("Enter new password: ")
-                
-                # Validate password
-                is_valid, message = self.auth_manager._validate_password(new_password)
-                if is_valid:
-                    break
-                print(f"❌ {message}")
-        
-        # Hash the password
-        import bcrypt
-        salt = bcrypt.gensalt()
-        new_password_hash = bcrypt.hashpw(new_password.encode('utf-8'), salt)
-        
-        # Update the user's password
-        self.db['users'].update_one(
-            {"_id": ObjectId(user_id)},
-            {
-                "$set": {
-                    "password_hash": new_password_hash,
-                    "security.last_password_change": datetime.now(),
-                    "security.failed_login_attempts": 0,
-                    "security.password_reset_token": None,
-                    "security.password_reset_expiry": None
-                }
-            }
-        )
-        
-        print(f"\n✅ Password reset successfully")
-        print(f"New password: {new_password}")
-        print("Make sure to provide this password to the user securely.")
-        
-        self.wait_for_enter()
-
-    def view_user_courses_admin(self, user_id):
-        """Admin function to view a user's courses"""
-        self.print_header("USER COURSES")
-        
-        courses = self.course_manager.get_user_courses(user_id)
-        
-        if not courses:
-            print("This user has no courses.")
+        if not user:
+            print("❌ User not found.")
             self.wait_for_enter()
             return
         
-        print(f"Found {len(courses)} courses:\n")
+        # Basic info
+        print(f"Username: {user['username']}")
+        print(f"Email: {user['email']}")
+        print(f"Name: {user['first_name']} {user['last_name']}")
+        print(f"Account created: {user['created_at']}")
+        print(f"Last login: {user.get('last_login', 'Never')}")
         
-        for i, course in enumerate(courses, 1):
-            print(f"{i}. {course['title']}")
-            print(f"   Description: {course['description']}")
-            print(f"   Created: {course['created_at']}")
-            print()
+        # Status
+        print("\n--- STATUS ---")
+        print(f"Admin: {'Yes' if user.get('is_admin', False) else 'No'}")
+        print(f"Active: {'Yes' if user.get('is_active', True) else 'No'}")
+        print(f"Verified: {'Yes' if user.get('is_verified', False) else 'No'}")
+        
+        # Profile info
+        if user.get('profile'):
+            print("\n--- PROFILE ---")
+            print(f"Bio: {user['profile'].get('bio') or 'Not set'}")
+            print(f"Education: {user['profile'].get('education_level') or 'Not set'}")
+            subjects = user['profile'].get('subjects', [])
+            print(f"Subjects: {', '.join(subjects) if subjects else 'None'}")
+        
+        # Study stats
+        if user.get('study_stats'):
+            print("\n--- STUDY STATISTICS ---")
+            print(f"Total study time: {user['study_stats'].get('total_study_time', 0)} minutes")
+            print(f"Quizzes completed: {user['study_stats'].get('quizzes_completed', 0)}")
+            print(f"Flashcards reviewed: {user['study_stats'].get('flashcards_reviewed', 0)}")
+            print(f"Last activity: {user['study_stats'].get('last_activity', 'Never')}")
+        
+        # Get user's content counts
+        courses_count = self.db['courses'].count_documents({"user_id": ObjectId(user_id)})
+        
+        print("\n--- CONTENT SUMMARY ---")
+        print(f"Total courses: {courses_count}")
         
         self.wait_for_enter()
 
-    def delete_user_account_admin(self, user_id):
+    def toggle_admin_status(self, user_id, user):
+        """Admin function to toggle a user's admin status"""
+        current_status = user.get('is_admin', False)
+        new_status = not current_status
+        
+        if new_status:
+            print(f"⚠️ WARNING: You are about to grant ADMIN privileges to {user['username']}.")
+            print("Admins have full control over the platform including user management.")
+        else:
+            print(f"⚠️ WARNING: You are about to remove ADMIN privileges from {user['username']}.")
+        
+        confirm = input(f"\nAre you sure you want to {'grant' if new_status else 'remove'} admin privileges? (y/n): ").lower() == 'y'
+        
+        if not confirm:
+            print("\nOperation canceled.")
+            self.wait_for_enter()
+            return user
+        
+        try:
+            self.db['users'].update_one(
+                {"_id": ObjectId(user_id)},
+                {"$set": {"is_admin": new_status}}
+            )
+            
+            # Update the user object for the UI
+            user['is_admin'] = new_status
+            
+            print(f"\n✅ Admin status {'granted to' if new_status else 'removed from'} {user['username']}.")
+            self.wait_for_enter()
+            return user
+        except Exception as e:
+            print(f"\n❌ Error updating admin status: {str(e)}")
+            self.wait_for_enter()
+            return user
+
+    def toggle_user_active_status(self, user_id, user):
+        """Admin function to activate or deactivate a user account"""
+        current_status = user.get('is_active', True)
+        new_status = not current_status
+        
+        if not new_status:
+            print(f"⚠️ WARNING: You are about to deactivate {user['username']}'s account.")
+            print("The user will not be able to log in until their account is reactivated.")
+        else:
+            print(f"You are about to reactivate {user['username']}'s account.")
+        
+        confirm = input(f"\nAre you sure you want to {'deactivate' if not new_status else 'reactivate'} this account? (y/n): ").lower() == 'y'
+        
+        if not confirm:
+            print("\nOperation canceled.")
+            self.wait_for_enter()
+            return user
+        
+        try:
+            self.db['users'].update_one(
+                {"_id": ObjectId(user_id)},
+                {"$set": {"is_active": new_status}}
+            )
+            
+            # Update the user object for the UI
+            user['is_active'] = new_status
+            
+            print(f"\n✅ Account {'deactivated' if not new_status else 'reactivated'} successfully.")
+            self.wait_for_enter()
+            return user
+        except Exception as e:
+            print(f"\n❌ Error updating account status: {str(e)}")
+            self.wait_for_enter()
+            return user
+
+    def reset_user_password_admin(self, user_id):
+        """Admin function to reset a user's password"""
+        self.print_header("RESET USER PASSWORD")
+        
+        user = self.db['users'].find_one({"_id": ObjectId(user_id)}, {"username": 1})
+        
+        if not user:
+            print("❌ User not found.")
+            self.wait_for_enter()
+            return
+        
+        print(f"You are about to reset the password for user: {user['username']}")
+        print("A new random password will be generated.")
+        
+        confirm = input("\nProceed with password reset? (y/n): ").lower() == 'y'
+        
+        if not confirm:
+            print("\nPassword reset canceled.")
+            self.wait_for_enter()
+            return
+        
+        # Generate a random password
+        import random
+        import string
+        import bcrypt
+        
+        password_chars = string.ascii_letters + string.digits + "!@#$%^&*"
+        new_password = ''.join(random.choice(password_chars) for _ in range(12))
+        
+        # Hash the new password
+        salt = bcrypt.gensalt()
+        new_password_hash = bcrypt.hashpw(new_password.encode('utf-8'), salt)
+        
+        try:
+            self.db['users'].update_one(
+                {"_id": ObjectId(user_id)},
+                {
+                    "$set": {
+                        "password_hash": new_password_hash,
+                        "security.last_password_change": datetime.now(),
+                        "security.password_reset_token": None,
+                        "security.password_reset_expiry": None,
+                        "security.failed_login_attempts": 0
+                    }
+                }
+            )
+            
+            print("\n✅ Password reset successfully.")
+            print(f"New password: {new_password}")
+            print("Please provide this password to the user.")
+            
+        except Exception as e:
+            print(f"\n❌ Error resetting password: {str(e)}")
+        
+        self.wait_for_enter()
+
+    def delete_user_admin(self, user_id):
         """Admin function to delete a user account"""
         self.print_header("DELETE USER ACCOUNT")
         
-        print("⚠️ WARNING: This will permanently delete the user account and ALL their data.")
+        user = self.db['users'].find_one({"_id": ObjectId(user_id)}, {"username": 1})
+        
+        if not user:
+            print("❌ User not found.")
+            self.wait_for_enter()
+            return False
+        
+        print(f"⚠️ WARNING: You are about to permanently delete {user['username']}'s account.")
+        print("This will remove all their courses, modules, content, and profile information.")
         print("This action cannot be undone.")
         
         confirm = input("\nType 'DELETE' to confirm: ")
@@ -2459,7 +2207,10 @@ class AxiomCLI:
             self.wait_for_enter()
             return False
         
-        success, message = self.auth_manager.admin_delete_user(self.current_user['id'], user_id)
+        success, message = self.auth_manager.admin_delete_user(
+            admin_user_id=self.current_user['id'],
+            target_user_id=user_id
+        )
         
         if success:
             print(f"\n✅ {message}")
@@ -2471,99 +2222,128 @@ class AxiomCLI:
             return False
 
     def system_statistics(self):
-        """Admin function to view system statistics"""
+        """Admin function to view system-wide statistics"""
         self.print_header("SYSTEM STATISTICS")
         
-        # Count various statistics from the database
-        user_count = self.db['users'].count_documents({})
-        active_users = self.db['users'].count_documents({"is_active": True})
-        admin_count = self.db['users'].count_documents({"is_admin": True})
-        
-        course_count = self.db['courses'].count_documents({})
-        module_count = self.db['modules'].count_documents({})
-        
-        flashcard_count = self.db['flashcard_decks'].count_documents({})
-        quiz_count = self.db['quizzes'].count_documents({})
-        video_count = self.db['video_chapters'].count_documents({})
-        notes_count = self.db['notes'].count_documents({})
-        
-        # Display statistics
-        print("User Statistics:")
-        print(f"  Total Users: {user_count}")
-        print(f"  Active Users: {active_users}")
-        print(f"  Administrators: {admin_count}")
-        print()
-        
-        print("Content Statistics:")
-        print(f"  Courses: {course_count}")
-        print(f"  Modules: {module_count}")
-        print(f"  Uploaded Notes: {notes_count}")
-        print(f"  Flashcard Decks: {flashcard_count}")
-        print(f"  Quizzes: {quiz_count}")
-        print(f"  Video Chapters: {video_count}")
-        print()
-        
-        # Find top users by activity
-        top_users = list(self.db['users'].find({}, {
-            "username": 1, 
-            "study_stats.total_study_time": 1,
-            "study_stats.quizzes_completed": 1,
-            "study_stats.flashcards_reviewed": 1
-        }).sort("study_stats.total_study_time", -1).limit(5))
-        
-        if top_users:
-            print("Top Users by Study Time:")
-            for i, user in enumerate(top_users, 1):
-                study_time = user.get("study_stats", {}).get("total_study_time", 0)
-                print(f"  {i}. {user['username']} - {study_time} minutes")
+        try:
+            # User statistics
+            total_users = self.db['users'].count_documents({})
+            active_users = self.db['users'].count_documents({"is_active": True})
+            admin_users = self.db['users'].count_documents({"is_admin": True})
+            verified_users = self.db['users'].count_documents({"is_verified": True})
+            
+            # Content statistics
+            total_courses = self.db['courses'].count_documents({})
+            total_modules = self.db['modules'].count_documents({})
+            total_flashcard_decks = self.db['flashcard_decks'].count_documents({})
+            total_quizzes = self.db['quizzes'].count_documents({})
+            total_video_chapters = self.db['video_chapters'].count_documents({})
+            total_notes = self.db['notes'].count_documents({})
+            
+            # Calculate average content per user
+            avg_courses_per_user = total_courses / total_users if total_users > 0 else 0
+            avg_modules_per_course = total_modules / total_courses if total_courses > 0 else 0
+            
+            # Display statistics
+            print("--- USER STATISTICS ---")
+            print(f"Total users: {total_users}")
+            print(f"Active users: {active_users} ({100 * active_users/total_users:.1f}% of total)" if total_users > 0 else "Active users: 0")
+            print(f"Verified users: {verified_users} ({100 * verified_users/total_users:.1f}% of total)" if total_users > 0 else "Verified users: 0")
+            print(f"Admin users: {admin_users}")
+            
+            print("\n--- CONTENT STATISTICS ---")
+            print(f"Total courses: {total_courses}")
+            print(f"Total modules: {total_modules}")
+            print(f"Total flashcard decks: {total_flashcard_decks}")
+            print(f"Total quizzes: {total_quizzes}")
+            print(f"Total video chapters: {total_video_chapters}")
+            print(f"Total notes: {total_notes}")
+            
+            print("\n--- AVERAGES ---")
+            print(f"Average courses per user: {avg_courses_per_user:.2f}")
+            print(f"Average modules per course: {avg_modules_per_course:.2f}")
+            
+            # Recent activity (last 7 days)
+            from datetime import timedelta
+            one_week_ago = datetime.now() - timedelta(days=7)
+            recent_logins = self.db['users'].count_documents({"last_login": {"$gte": one_week_ago}})
+            recent_courses = self.db['courses'].count_documents({"created_at": {"$gte": one_week_ago}})
+            recent_notes = self.db['notes'].count_documents({"created_at": {"$gte": one_week_ago}})
+            
+            print("\n--- RECENT ACTIVITY (LAST 7 DAYS) ---")
+            print(f"User logins: {recent_logins}")
+            print(f"New courses created: {recent_courses}")
+            print(f"New notes created: {recent_notes}")
+            
+            # Most active users (based on study time)
+            top_users = list(self.db['users'].find(
+                {"study_stats.total_study_time": {"$exists": True, "$gt": 0}}, 
+                {"username": 1, "study_stats.total_study_time": 1}
+            ).sort("study_stats.total_study_time", -1).limit(5))
+            
+            if top_users:
+                print("\n--- TOP 5 USERS BY STUDY TIME ---")
+                for i, user in enumerate(top_users, 1):
+                    username = user.get("username", "Unknown")
+                    study_time = user.get("study_stats", {}).get("total_study_time", 0)
+                    print(f"{i}. {username}: {study_time} minutes")
+            
+        except Exception as e:
+            print(f"❌ Error retrieving system statistics: {str(e)}")
         
         self.wait_for_enter()
 
     def promote_user(self):
-        """Admin function to promote a user to admin status"""
+        """Admin function to promote a user to admin"""
         self.print_header("PROMOTE USER TO ADMIN")
         
-        username_or_email = input("Enter username or email of user to promote: ")
+        username = input("Enter username to promote: ")
         
-        # Find user
-        user = self.db['users'].find_one({
-            "$or": [
-                {"username": username_or_email},
-                {"email": username_or_email}
-            ]
-        })
+        if not username:
+            print("❌ Username is required.")
+            self.wait_for_enter()
+            return
+        
+        # Find the user
+        user = self.db['users'].find_one({"username": username})
         
         if not user:
-            print(f"❌ User not found: {username_or_email}")
+            print(f"❌ User '{username}' not found.")
             self.wait_for_enter()
             return
         
-        # Check if already admin
-        if user.get("is_admin", False):
-            print(f"User {user['username']} is already an administrator.")
+        # Check if user is already an admin
+        if user.get('is_admin', False):
+            print(f"⚠️ User '{username}' is already an admin.")
             self.wait_for_enter()
             return
         
-        # Confirm promotion
-        confirm = input(f"Promote {user['username']} to administrator? (y/n): ").lower() == 'y'
+        print(f"You are about to promote '{username}' to admin status.")
+        print("Admins have full control over the platform including user management.")
         
-        if confirm:
-            # Update user to admin
+        confirm = input("\nAre you sure? (y/n): ").lower() == 'y'
+        
+        if not confirm:
+            print("\nPromotion canceled.")
+            self.wait_for_enter()
+            return
+        
+        try:
             self.db['users'].update_one(
-                {"_id": user["_id"]},
+                {"_id": user['_id']},
                 {"$set": {"is_admin": True}}
             )
-            print(f"✅ User {user['username']} promoted to administrator successfully!")
-        else:
-            print("Promotion canceled.")
+            
+            print(f"\n✅ User '{username}' has been promoted to admin successfully.")
+        except Exception as e:
+            print(f"\n❌ Error promoting user: {str(e)}")
         
         self.wait_for_enter()
 
-
 if __name__ == "__main__":
-    cli = AxiomCLI()
-    try:
-        cli.main_menu()
-    except KeyboardInterrupt:
-        print("\n\nProgram interrupted. Exiting...")
-        cli.exit_program()
+   cli = AxiomCLI()
+   try:
+       cli.main_menu()
+   except KeyboardInterrupt:
+       print("\n\nProgram interrupted. Exiting...")
+       cli.exit_program()
